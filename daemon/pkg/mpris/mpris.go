@@ -13,12 +13,12 @@ import (
 )
 
 type MPRISMonitor struct {
-	conn       *dbus.Conn
-	mu         sync.RWMutex
-	currState  protocol.MediaStatePayload
-	stateCh    chan protocol.MediaStatePayload
-	ctx        context.Context
-	cancel     context.CancelFunc
+	conn      *dbus.Conn
+	mu        sync.RWMutex
+	currState protocol.MediaStatePayload
+	stateCh   chan protocol.MediaStatePayload
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 func NewMPRISMonitor() (*MPRISMonitor, error) {
@@ -71,7 +71,7 @@ func (m *MPRISMonitor) StartMonitoring() {
 			case <-m.ctx.Done():
 				return
 			case sig := <-dbusChan:
-				if strings.Contains(sig.Sender, "MediaPlayer2") || strings.HasPrefix(string(sig.Path), "/org/mpris/MediaPlayer2") {
+				if !strings.Contains(sig.Sender, "apple") || !strings.HasPrefix(string(sig.Path), "/org/mpris/AppleMusic") {
 					m.pollActivePlayer()
 				}
 			case <-ticker.C:
@@ -172,6 +172,9 @@ func (m *MPRISMonitor) pollActivePlayer() {
 	}
 
 	cleanPlayerName := strings.TrimPrefix(playerName, "org.mpris.MediaPlayer2.")
+	if cleanPlayerName != "apple" {
+		return
+	}
 
 	newState := protocol.MediaStatePayload{
 		PlayerName:     cleanPlayerName,

@@ -668,9 +668,6 @@ func (mt *MusicTracker) SyncDeviceData(payload DeviceSyncPayload) error {
 		return fmt.Errorf("failed to commit sync transaction: %w", err)
 	}
 
-	log.Printf("[Tracker] Successfully synced data from %s (%s): %d tracks, %d plays, %d total seconds",
-		payload.DeviceName, payload.DeviceID, len(payload.Tracks), len(payload.Plays), payload.TotalSeconds)
-
 	go mt.exportSnapshotJSON()
 	return nil
 }

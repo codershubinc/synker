@@ -34,6 +34,7 @@ type DashboardState struct {
 	WebPort      int                        `json:"web_port"`
 	MediaState   protocol.MediaStatePayload `json:"media_state"`
 	LiveState    LiveMediaState             `json:"live_state"`
+	DeviceStates map[string]LiveMediaState  `json:"device_states"`
 	MusicHistory tracker.StorageData        `json:"music_history"`
 }
 
@@ -61,6 +62,7 @@ type WebServer struct {
 	tracker      *tracker.MusicTracker
 	liveMu       sync.RWMutex
 	liveState    LiveMediaState
+	devicesState map[string]LiveMediaState // Per-device live states
 	artworkMu    sync.RWMutex
 	artworkData  []byte // raw JPEG bytes for current track artwork (from mobile client)
 	wsClientsMu  sync.Mutex
@@ -74,21 +76,24 @@ func NewWebServer(
 	mprisMon *mpris.MPRISMonitor,
 	tracker *tracker.MusicTracker,
 ) *WebServer {
-	ws := &WebServer{
-		port:       webPort,
-		deviceID:   deviceID,
-		deviceName: deviceName,
-		mprisMon:   mprisMon,
-		tracker:    tracker,
-		wsClients:  make(map[chan []byte]bool),
-		liveState: LiveMediaState{
-			DeviceID:       deviceID,
-			DeviceName:     deviceName,
-			PlaybackStatus: "Idle",
-			Source:         "Daemon",
-			LastUpdated:    time.Now(),
-		},
+	initialState := LiveMediaState{
+		DeviceID:       deviceID,
+		DeviceName:     deviceName,
+		PlaybackStatus: "Idle",
+		Source:         "Daemon",
+		LastUpdated:    time.Now(),
 	}
+	ws := &WebServer{
+		port:         webPort,
+		deviceID:     deviceID,
+		deviceName:   deviceName,
+		mprisMon:     mprisMon,
+		tracker:      tracker,
+		devicesState: make(map[string]LiveMediaState),
+		wsClients:    make(map[chan []byte]bool),
+		liveState:    initialState,
+	}
+	ws.devicesState[deviceID] = initialState
 	return ws
 }
 
@@ -99,21 +104,59 @@ func (ws *WebServer) SetLiveMediaState(state LiveMediaState) {
 		state.Artist = fmt.Sprintf("%v", state.Artists[0])
 	}
 	state.LastUpdated = time.Now()
+	if state.DeviceID == "" {
+		state.DeviceID = "client"
+	}
+	if ws.devicesState == nil {
+		ws.devicesState = make(map[string]LiveMediaState)
+	}
+	ws.devicesState[state.DeviceID] = state
 	ws.liveState = state
 	ws.liveMu.Unlock()
 
 	ws.broadcastLiveState(state)
 }
 
+func (ws *WebServer) GetAllDeviceStates() map[string]LiveMediaState {
+	ws.liveMu.RLock()
+	defer ws.liveMu.RUnlock()
+
+	res := make(map[string]LiveMediaState)
+	for k, v := range ws.devicesState {
+		res[k] = v
+	}
+
+	// Also ensure local daemon/MPRIS state is present
+	if ws.mprisMon != nil {
+		mState := ws.mprisMon.GetCurrentState()
+		res[ws.deviceID] = LiveMediaState{
+			DeviceID:       ws.deviceID,
+			DeviceName:     ws.deviceName,
+			Title:          mState.Title,
+			Artist:         mState.Artist,
+			Artists:        tracker.SplitArtists(mState.Artist),
+			Album:          mState.Album,
+			PlaybackStatus: mState.PlaybackStatus,
+			CurrentSeconds: mState.PositionMS / 1000,
+			DurationMS:     mState.DurationMS,
+			ArtworkURL:     mState.ArtURL,
+			Source:         mState.PlayerName,
+			LastUpdated:    time.Now(),
+		}
+	}
+	return res
+}
+
 func (ws *WebServer) GetLiveMediaState() LiveMediaState {
 	ws.liveMu.RLock()
 	defer ws.liveMu.RUnlock()
 
-	// If a mobile client hasn't updated recently, fallback to MPRIS
+	// If a mobile client is actively playing, use it
 	if ws.liveState.PlaybackStatus == "Playing" && time.Since(ws.liveState.LastUpdated) < 15*time.Second {
 		return ws.liveState
 	}
 
+	// Check if MPRIS is playing
 	if ws.mprisMon != nil {
 		mState := ws.mprisMon.GetCurrentState()
 		if mState.PlaybackStatus == "Playing" || mState.Title != "" {
@@ -138,9 +181,12 @@ func (ws *WebServer) GetLiveMediaState() LiveMediaState {
 }
 
 func (ws *WebServer) broadcastLiveState(state LiveMediaState) {
+	devices := ws.GetAllDeviceStates()
 	data, err := json.Marshal(map[string]interface{}{
-		"type": "now_playing",
-		"data": state,
+		"type":          "now_playing",
+		"data":          state,
+		"device_id":     state.DeviceID,
+		"device_states": devices,
 	})
 	if err != nil {
 		return
@@ -196,6 +242,7 @@ func (ws *WebServer) Handler() http.Handler {
 			WebPort:      ws.port,
 			MediaState:   mediaState,
 			LiveState:    ws.GetLiveMediaState(),
+			DeviceStates: ws.GetAllDeviceStates(),
 			MusicHistory: history,
 		}
 
@@ -352,6 +399,7 @@ func (ws *WebServer) Handler() http.Handler {
 
 	// Current Playing Artwork Endpoint (JPEG/PNG image)
 	mux.HandleFunc("/api/v1/current/artwork", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[WebUI] /api/v1/current/artwork request from %s", r.RemoteAddr)
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 
@@ -361,11 +409,13 @@ func (ws *WebServer) Handler() http.Handler {
 		copy(data, ws.artworkData)
 		ws.artworkMu.RUnlock()
 
+		log.Printf("[WebUI] Serving in-memory artwork (%d bytes) || %d", len(data), len(ws.artworkData))
 		if len(data) > 0 {
 			w.Header().Set("Content-Type", "image/jpeg")
 			_, _ = w.Write(data)
 			return
 		}
+		log.Printf("[WebUI] No in-memory artwork available, checking MPRIS state")
 
 		// Priority 2: MPRIS artwork — handle both http(s) redirect and file:// local read
 		state := ws.GetLiveMediaState()
@@ -481,8 +531,12 @@ func (ws *WebServer) Handler() http.Handler {
 }
 
 func (ws *WebServer) handleLiveWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Standard HTTP Upgrade for WebSocket RFC 6455
-	if r.Header.Get("Upgrade") != "websocket" {
+	// Standard HTTP Upgrade for WebSocket RFC 6455 (tolerant of reverse proxy normalization)
+	isWebSocket := strings.EqualFold(r.Header.Get("Upgrade"), "websocket") ||
+		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade") ||
+		r.Header.Get("Sec-WebSocket-Key") != ""
+
+	if !isWebSocket {
 		http.Error(w, "Expected websocket upgrade", http.StatusBadRequest)
 		return
 	}
@@ -528,8 +582,9 @@ func (ws *WebServer) handleLiveWebSocket(w http.ResponseWriter, r *http.Request)
 
 	// Send immediate initial state
 	initState, _ := json.Marshal(map[string]interface{}{
-		"type": "now_playing",
-		"data": ws.GetLiveMediaState(),
+		"type":          "now_playing",
+		"data":          ws.GetLiveMediaState(),
+		"device_states": ws.GetAllDeviceStates(),
 	})
 	_ = writeWSFrame(conn, initState)
 
