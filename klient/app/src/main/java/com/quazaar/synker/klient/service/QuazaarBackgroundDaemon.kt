@@ -132,7 +132,9 @@ class QuazaarBackgroundDaemon : Service() {
                 try {
                     artBitmap = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
                         ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    Log.d("ARTWORK DEBUG", "Error getting artwork $e")
+                }
 
                 if (title.isNotBlank()) {
                     if (isPlaying) {
@@ -164,7 +166,6 @@ class QuazaarBackgroundDaemon : Service() {
                                 Log.d(TAG, "Artwork encode error: ${e.message}")
                             }
                         }
-
                         QuazaarApplication.instance.syncManager.sendLivePlaybackTick(
                             title = title,
                             artists = artists,
