@@ -1,6 +1,8 @@
 package com.quazaar.synker.klient.sync
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.*
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
@@ -40,12 +43,14 @@ class QuazaarSyncManager(private val context: Context) {
     private val nsdManager = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
 
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .pingInterval(15, TimeUnit.SECONDS)
         .build()
 
     private var activeWebSocket: WebSocket? = null
     private var webSocketConnecting = false
+    private var lastWsConnectAttemptMs = 0L
 
     private val _isWebSocketConnected = MutableStateFlow(false)
     val isWebSocketConnected: StateFlow<Boolean> = _isWebSocketConnected.asStateFlow()
@@ -186,7 +191,7 @@ class QuazaarSyncManager(private val context: Context) {
         if (!localIp.isNullOrBlank()) {
             val localUrl = "http://$localIp:$localPort/api/v1/sync"
             Log.d(TAG, "Attempting local sync to $localUrl")
-            success = postPayload(localUrl, payload)
+            success = postPayload(localUrl, payload, connectTimeoutMs = 3000, readTimeoutMs = 6000)
             if (success) {
                 targetEndpoint = "LAN ($localIp)"
             }
@@ -196,7 +201,7 @@ class QuazaarSyncManager(private val context: Context) {
         if (!success) {
             val tunnelUrl = "$BACKUP_TUNNEL_URL/api/v1/sync"
             Log.d(TAG, "Local sync unavailable; falling back to tunnel $tunnelUrl")
-            success = postPayload(tunnelUrl, payload)
+            success = postPayload(tunnelUrl, payload, connectTimeoutMs = 15000, readTimeoutMs = 30000)
             if (success) {
                 targetEndpoint = "Tunnel (Cloud)"
             }
@@ -229,6 +234,9 @@ class QuazaarSyncManager(private val context: Context) {
         json.put("total_plays", totalPlays)
 
         val tracksArr = JSONArray()
+        var artworksIncluded = 0
+        val maxArtworksPerSync = 15 // Limit thumbnails per sync to keep payload < 200KB
+
         for (t in tracks) {
             val tObj = JSONObject()
             tObj.put("song_id", t.songId)
@@ -241,16 +249,13 @@ class QuazaarSyncManager(private val context: Context) {
             tObj.put("first_played", t.firstPlayed)
             tObj.put("last_played", t.lastPlayed)
             tObj.put("total_seconds", t.totalSeconds)
-            // Include artwork as Base64 JPEG if file exists on device
-            if (!t.artworkPath.isNullOrEmpty()) {
-                try {
-                    val artFile = java.io.File(t.artworkPath)
-                    if (artFile.exists() && artFile.length() > 0) {
-                        val artBytes = artFile.readBytes()
-                        tObj.put("artwork_data", android.util.Base64.encodeToString(artBytes, android.util.Base64.NO_WRAP))
-                    }
-                } catch (e: Exception) {
-                    Log.d(TAG, "Could not read artwork for ${t.title}: ${e.message}")
+
+            // Compress artwork to small 256x256 thumbnail so payload stays compact
+            if (artworksIncluded < maxArtworksPerSync && !t.artworkPath.isNullOrEmpty()) {
+                val b64 = getCompressedArtworkBase64(t.artworkPath)
+                if (b64 != null) {
+                    tObj.put("artwork_data", b64)
+                    artworksIncluded++
                 }
             }
             tracksArr.put(tObj)
@@ -284,14 +289,43 @@ class QuazaarSyncManager(private val context: Context) {
         return json.toString()
     }
 
-    private fun postPayload(urlString: String, jsonString: String): Boolean {
+    private fun getCompressedArtworkBase64(path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        return try {
+            val file = java.io.File(path)
+            if (!file.exists() || file.length() == 0L) return null
+
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, bounds)
+            var sample = 1
+            val target = 256
+            while (bounds.outWidth / sample > target || bounds.outHeight / sample > target) {
+                sample *= 2
+            }
+            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sample }
+            val bitmap = BitmapFactory.decodeFile(path, decodeOptions) ?: return null
+
+            val baos = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 70, baos)
+            android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun postPayload(
+        urlString: String,
+        jsonString: String,
+        connectTimeoutMs: Int = 5000,
+        readTimeoutMs: Int = 10000
+    ): Boolean {
         var conn: HttpURLConnection? = null
         return try {
             val url = URL(urlString)
             conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
-                connectTimeout = 3500 // Quick timeout for seamless LAN/Tunnel failover
-                readTimeout = 5000
+                connectTimeout = connectTimeoutMs
+                readTimeout = readTimeoutMs
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("X-Device-ID", deviceId)
@@ -314,24 +348,52 @@ class QuazaarSyncManager(private val context: Context) {
     }
 
     /**
-     * Connects real-time WebSocket to daemon for live playback streaming
+     * Connects real-time WebSocket to daemon for live playback streaming.
+     * Automatically attempts LAN first if discovered, and falls back to Tunnel (wss://) seamlessly.
      */
     fun ensureWebSocketConnected() {
+        val now = System.currentTimeMillis()
+        if (webSocketConnecting || activeWebSocket != null || (now - lastWsConnectAttemptMs < 3000L)) return
+
         val host = _discoveredHost.value
         val port = _discoveredPort.value
-        if (host.isNullOrBlank() || webSocketConnecting || activeWebSocket != null) return
+        val tunnelWsUrl = BACKUP_TUNNEL_URL
+            .replace("https://", "wss://")
+            .replace("http://", "ws://") + "/ws/v1/live"
 
+        // Prefer LAN if available, otherwise connect via Tunnel
+        val primaryWsUrl = if (!host.isNullOrBlank()) "ws://$host:$port/ws/v1/live" else tunnelWsUrl
+        connectWebSocket(primaryWsUrl, fallbackUrl = if (primaryWsUrl != tunnelWsUrl) tunnelWsUrl else null)
+    }
+
+    /**
+     * Manually triggers an immediate WebSocket reconnection attempt, resetting cooldowns and active connections.
+     */
+    fun reconnectWebSocket() {
+        try {
+            activeWebSocket?.close(1000, "manual reconnect")
+        } catch (_: Exception) {}
+        activeWebSocket = null
+        webSocketConnecting = false
+        lastWsConnectAttemptMs = 0L
+        ensureWebSocketConnected()
+    }
+
+    private fun connectWebSocket(url: String, fallbackUrl: String? = null) {
+        lastWsConnectAttemptMs = System.currentTimeMillis()
         webSocketConnecting = true
-        val wsUrl = "ws://$host:$port/ws/v1/live"
+
         val request = Request.Builder()
-            .url(wsUrl)
+            .url(url)
             .addHeader("X-Device-ID", deviceId)
             .addHeader("X-Device-Name", deviceName)
             .build()
 
+        Log.d(TAG, "Attempting WebSocket connection to $url")
+
         okHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.i(TAG, "Live WebSocket stream connected to $wsUrl")
+                Log.i(TAG, "Live WebSocket stream connected to $url")
                 activeWebSocket = webSocket
                 webSocketConnecting = false
                 _isWebSocketConnected.value = true
@@ -349,10 +411,16 @@ class QuazaarSyncManager(private val context: Context) {
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.d(TAG, "Live WebSocket error: ${t.message}")
+                Log.w(TAG, "WebSocket connection failed to $url: ${t.message}")
                 activeWebSocket = null
                 webSocketConnecting = false
                 _isWebSocketConnected.value = false
+
+                // Attempt fallback if available (e.g. LAN failed, fall back to tunnel)
+                if (!fallbackUrl.isNullOrBlank()) {
+                    Log.i(TAG, "Falling back to WebSocket tunnel: $fallbackUrl")
+                    connectWebSocket(fallbackUrl, fallbackUrl = null)
+                }
             }
         })
     }

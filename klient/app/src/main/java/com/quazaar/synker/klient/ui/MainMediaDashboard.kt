@@ -63,7 +63,8 @@ fun MainMediaDashboard(
     lastSyncTimestamp: Long = 0L,
     syncStatus: String = "Ready",
     isWebSocketConnected: Boolean = false,
-    onManualSync: () -> Unit = {}
+    onManualSync: () -> Unit = {},
+    onRetryWebSocket: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf(AppTab.DASHBOARD) }
     var showClearWarningDialog by remember { mutableStateOf(false) }
@@ -169,30 +170,50 @@ fun MainMediaDashboard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Live WebSocket Status Pill
+                        // Live WebSocket Status / Retry Pill
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(999.dp))
-                                .background(if (isWebSocketConnected) AmoledGreen.copy(alpha = 0.15f) else AmoledCard)
-                                .border(1.dp, if (isWebSocketConnected) AmoledGreen.copy(alpha = 0.4f) else AmoledBorder, RoundedCornerShape(999.dp))
+                                .background(if (isWebSocketConnected) AmoledGreen.copy(alpha = 0.15f) else Color(0xFFF59E0B).copy(alpha = 0.12f))
+                                .border(
+                                    1.dp,
+                                    if (isWebSocketConnected) AmoledGreen.copy(alpha = 0.4f) else Color(0xFFF59E0B).copy(alpha = 0.35f),
+                                    RoundedCornerShape(999.dp)
+                                )
+                                .clickable { onRetryWebSocket() }
                                 .padding(horizontal = 9.dp, vertical = 5.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isWebSocketConnected) AmoledGreen else AmoledTextSecondary)
-                                )
-                                Text(
-                                    if (isWebSocketConnected) "WS LIVE" else "WS IDLE",
-                                    color = if (isWebSocketConnected) AmoledGreen else AmoledTextSecondary,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                if (isWebSocketConnected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(AmoledGreen)
+                                    )
+                                    Text(
+                                        "WS LIVE",
+                                        color = AmoledGreen,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Filled.Refresh,
+                                        contentDescription = "Retry WebSocket",
+                                        tint = Color(0xFFF59E0B),
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                    Text(
+                                        "WS RETRY",
+                                        color = Color(0xFFF59E0B),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
 

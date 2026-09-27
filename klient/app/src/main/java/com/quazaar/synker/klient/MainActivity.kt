@@ -91,6 +91,9 @@ class MainActivity : ComponentActivity() {
                 isWebSocketConnected = isWebSocketConnected,
                 onManualSync = {
                     syncManager.triggerManualSync()
+                },
+                onRetryWebSocket = {
+                    syncManager.reconnectWebSocket()
                 }
             )
         }
