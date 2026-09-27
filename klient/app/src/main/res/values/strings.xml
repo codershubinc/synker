@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">klient</string>
+    <string name="app_name">Quazaar Klient</string>
+    <string name="notification_listener_service">Quazaar Notification Sync Service</string>
 </resources>
