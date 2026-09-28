@@ -55,18 +55,19 @@ type LiveMediaState struct {
 }
 
 type WebServer struct {
-	port         int
-	deviceID     string
-	deviceName   string
-	mprisMon     *mpris.MPRISMonitor
-	tracker      *tracker.MusicTracker
-	liveMu       sync.RWMutex
-	liveState    LiveMediaState
-	devicesState map[string]LiveMediaState // Per-device live states
-	artworkMu    sync.RWMutex
-	artworkData  []byte // raw JPEG bytes for current track artwork (from mobile client)
-	wsClientsMu  sync.Mutex
-	wsClients    map[chan []byte]bool
+	port          int
+	deviceID      string
+	deviceName    string
+	mprisMon      *mpris.MPRISMonitor
+	tracker       *tracker.MusicTracker
+	liveMu        sync.RWMutex
+	liveState     LiveMediaState
+	devicesState  map[string]LiveMediaState // Per-device live states
+	artworkMu     sync.RWMutex
+	artworkSongID string                    // SongID that matches artworkData
+	artworkData   []byte                    // raw JPEG bytes for current track artwork (from mobile client)
+	wsClientsMu   sync.Mutex
+	wsClients     map[chan []byte]bool
 }
 
 func NewWebServer(
@@ -113,6 +114,15 @@ func (ws *WebServer) SetLiveMediaState(state LiveMediaState) {
 	ws.devicesState[state.DeviceID] = state
 	ws.liveState = state
 	ws.liveMu.Unlock()
+
+	// If track changed, clear in-memory artwork if it belonged to previous track
+	songID := tracker.GenerateSongID(state.Title, state.Artists)
+	ws.artworkMu.Lock()
+	if state.Title != "" && ws.artworkSongID != "" && ws.artworkSongID != songID {
+		ws.artworkData = nil
+		ws.artworkSongID = ""
+	}
+	ws.artworkMu.Unlock()
 
 	ws.broadcastLiveState(state)
 }
@@ -370,28 +380,35 @@ func (ws *WebServer) Handler() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		state := ws.GetLiveMediaState()
 
-		// Determine the best artwork_url to expose in the JSON response.
-		// We always point to /api/v1/current/artwork when we have any artwork source,
-		// so callers get a stable, always-valid URL regardless of source (mobile or MPRIS).
+		songID := tracker.GenerateSongID(state.Title, state.Artists)
+
+		// Check if we have artwork for THIS SPECIFIC song in memory
 		ws.artworkMu.RLock()
-		hasLocalArt := len(ws.artworkData) > 0
+		hasMemoryArt := ws.artworkSongID == songID && len(ws.artworkData) > 0
 		ws.artworkMu.RUnlock()
 
-		scheme := "http"
-		selfArtURL := scheme + "://" + r.Host + "/api/v1/current/artwork"
+		// Check if we have artwork on disk for this song
+		hasDiskArt := false
+		if !hasMemoryArt && ws.tracker != nil && songID != "" {
+			hasDiskArt = ws.tracker.GetArtworkPath(songID) != ""
+		}
 
-		if hasLocalArt {
-			// Mobile client sent artwork — serve from memory
+		scheme := "http"
+		selfArtURL := scheme + "://" + r.Host + "/api/v1/current/artwork?id=" + songID
+
+		if hasMemoryArt || hasDiskArt {
 			state.ArtworkURL = selfArtURL
 		} else if state.ArtworkURL != "" {
 			if len(state.ArtworkURL) >= 8 && (state.ArtworkURL[:7] == "http://" || state.ArtworkURL[:8] == "https://") {
 				// MPRIS gave an http(s) URL — keep it directly
 			} else if len(state.ArtworkURL) >= 7 && state.ArtworkURL[:7] == "file://" {
-				// MPRIS gave a file:// path — proxy via our endpoint (which reads the file)
+				// MPRIS gave a file:// path — proxy via our endpoint
 				state.ArtworkURL = selfArtURL
 			} else {
 				state.ArtworkURL = ""
 			}
+		} else {
+			state.ArtworkURL = ""
 		}
 
 		_ = json.NewEncoder(w).Encode(state)
@@ -399,39 +416,40 @@ func (ws *WebServer) Handler() http.Handler {
 
 	// Current Playing Artwork Endpoint (JPEG/PNG image)
 	mux.HandleFunc("/api/v1/current/artwork", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("[WebUI] /api/v1/current/artwork request from %s", r.RemoteAddr)
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 
-		// Priority 1: In-memory artwork from mobile client (Base64-decoded JPEG)
+		currState := ws.GetLiveMediaState()
+		currSongID := tracker.GenerateSongID(currState.Title, currState.Artists)
+
+		targetID := r.URL.Query().Get("id")
+		if targetID == "" {
+			targetID = currSongID
+		}
+
+		// Priority 1: In-memory artwork (MUST match the target track!)
 		ws.artworkMu.RLock()
-		data := make([]byte, len(ws.artworkData))
-		copy(data, ws.artworkData)
+		var memData []byte
+		if (targetID == "" || ws.artworkSongID == targetID) && len(ws.artworkData) > 0 {
+			memData = make([]byte, len(ws.artworkData))
+			copy(memData, ws.artworkData)
+		}
 		ws.artworkMu.RUnlock()
 
-		log.Printf("[WebUI] Serving in-memory artwork (%d bytes) || %d", len(data), len(ws.artworkData))
-		if len(data) > 0 {
+		if len(memData) > 0 {
 			w.Header().Set("Content-Type", "image/jpeg")
-			_, _ = w.Write(data)
+			_, _ = w.Write(memData)
 			return
 		}
-		log.Printf("[WebUI] No in-memory artwork available, checking MPRIS state")
 
-		// Priority 2: MPRIS artwork — handle both http(s) redirect and file:// local read
-		state := ws.GetLiveMediaState()
-		artURL := state.ArtworkURL
-		if artURL != "" {
-			if len(artURL) >= 8 && (artURL[:7] == "http://" || artURL[:8] == "https://") {
-				http.Redirect(w, r, artURL, http.StatusTemporaryRedirect)
-				return
-			}
-			if len(artURL) >= 7 && artURL[:7] == "file://" {
-				localPath := artURL[7:] // strip "file://"
-				fileData, err := os.ReadFile(localPath)
+		// Priority 2: Disk cache in tracker for this song
+		if ws.tracker != nil && targetID != "" {
+			diskPath := ws.tracker.GetArtworkPath(targetID)
+			if diskPath != "" {
+				fileData, err := os.ReadFile(diskPath)
 				if err == nil && len(fileData) > 0 {
-					// Detect content type from file extension
 					ct := "image/jpeg"
-					if len(localPath) > 4 && localPath[len(localPath)-4:] == ".png" {
+					if strings.HasSuffix(diskPath, ".png") {
 						ct = "image/png"
 					}
 					w.Header().Set("Content-Type", ct)
@@ -441,7 +459,29 @@ func (ws *WebServer) Handler() http.Handler {
 			}
 		}
 
-		http.Error(w, "no artwork available", http.StatusNoContent)
+		// Priority 3: MPRIS artwork if currently active track
+		artURL := currState.ArtworkURL
+		if artURL != "" {
+			if len(artURL) >= 8 && (artURL[:7] == "http://" || artURL[:8] == "https://") {
+				http.Redirect(w, r, artURL, http.StatusTemporaryRedirect)
+				return
+			}
+			if len(artURL) >= 7 && artURL[:7] == "file://" {
+				localPath := artURL[7:] // strip "file://"
+				fileData, err := os.ReadFile(localPath)
+				if err == nil && len(fileData) > 0 {
+					ct := "image/jpeg"
+					if strings.HasSuffix(localPath, ".png") {
+						ct = "image/png"
+					}
+					w.Header().Set("Content-Type", ct)
+					_, _ = w.Write(fileData)
+					return
+				}
+			}
+		}
+
+		http.Error(w, "no artwork available for this track", http.StatusNoContent)
 	})
 
 	// Current Playing Dynamic SVG Badge / Card Endpoint
@@ -450,15 +490,22 @@ func (ws *WebServer) Handler() http.Handler {
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		state := ws.GetLiveMediaState()
-		// Resolve artwork URL: use in-memory art endpoint when available
+		songID := tracker.GenerateSongID(state.Title, state.Artists)
+
+		// Check artwork availability
 		ws.artworkMu.RLock()
-		hasLocalArt := len(ws.artworkData) > 0
+		hasMemoryArt := ws.artworkSongID == songID && len(ws.artworkData) > 0
 		ws.artworkMu.RUnlock()
+
+		hasDiskArt := false
+		if !hasMemoryArt && ws.tracker != nil && songID != "" {
+			hasDiskArt = ws.tracker.GetArtworkPath(songID) != ""
+		}
+
 		artURL := state.ArtworkURL
-		if hasLocalArt {
-			// Build absolute URL from Host header for SVG embedding
+		if hasMemoryArt || hasDiskArt {
 			scheme := "http"
-			artURL = scheme + "://" + r.Host + "/api/v1/current/artwork"
+			artURL = scheme + "://" + r.Host + "/api/v1/current/artwork?id=" + songID
 		}
 		svg := generateCurrentPlayingSVG(state, artURL)
 		w.Write([]byte(svg))
@@ -611,13 +658,20 @@ func (ws *WebServer) handleLiveWebSocket(w http.ResponseWriter, r *http.Request)
 			}
 			if err := json.Unmarshal(payload, &incoming); err == nil && incoming.Type == "live_tick" {
 				ws.SetLiveMediaState(incoming.Data.LiveMediaState)
-				// Decode and store artwork if provided
+				songID := tracker.GenerateSongID(incoming.Data.Title, incoming.Data.Artists)
+
+				// Decode and store artwork if provided for this specific song
 				if incoming.Data.ArtworkData != "" {
 					jpegBytes, decErr := base64.StdEncoding.DecodeString(incoming.Data.ArtworkData)
 					if decErr == nil && len(jpegBytes) > 0 {
 						ws.artworkMu.Lock()
 						ws.artworkData = jpegBytes
+						ws.artworkSongID = songID
 						ws.artworkMu.Unlock()
+
+						if ws.tracker != nil && songID != "" {
+							_ = ws.tracker.SaveArtwork(songID, jpegBytes)
+						}
 					}
 				}
 			}

@@ -1189,7 +1189,7 @@
           artGlow.style.opacity = '0.55';
         } else {
           artworkImage.style.display = 'block';
-          artworkImage.src = window.location.origin + '/api/v1/current/artwork';
+          artworkImage.src = window.location.origin + '/api/v1/current/artwork?nocache=' + m.title;
           artGlow.style.backgroundImage = 'none';
         }
       } else if (m.title && m.playback_status === 'Paused') {

@@ -680,12 +680,35 @@ func (mt *MusicTracker) getCounts() (tracks int, plays int) {
 
 // GetArtworkPath returns the local file path for a track's artwork, or "" if not available.
 func (mt *MusicTracker) GetArtworkPath(songID string) string {
+	if songID == "" {
+		return ""
+	}
+	// Check direct file existence first
+	directFile := filepath.Join(mt.artworkDir, songID+".jpg")
+	if info, err := os.Stat(directFile); err == nil && info.Size() > 0 {
+		return directFile
+	}
 	var artworkPath sql.NullString
 	_ = mt.db.QueryRow(`SELECT artwork_path FROM tracks WHERE song_id = ?`, songID).Scan(&artworkPath)
-	if artworkPath.Valid {
-		return artworkPath.String
+	if artworkPath.Valid && artworkPath.String != "" {
+		if info, err := os.Stat(artworkPath.String); err == nil && info.Size() > 0 {
+			return artworkPath.String
+		}
 	}
 	return ""
+}
+
+// SaveArtwork writes artwork bytes to disk and updates tracks table
+func (mt *MusicTracker) SaveArtwork(songID string, jpegBytes []byte) error {
+	if songID == "" || len(jpegBytes) == 0 {
+		return nil
+	}
+	dest := filepath.Join(mt.artworkDir, songID+".jpg")
+	if err := os.WriteFile(dest, jpegBytes, 0644); err != nil {
+		return err
+	}
+	_, _ = mt.db.Exec(`UPDATE tracks SET artwork_path = ? WHERE song_id = ?`, dest, songID)
+	return nil
 }
 
 func (mt *MusicTracker) exportSnapshotJSON() {
