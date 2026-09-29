@@ -219,7 +219,7 @@ class MusicDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         return try {
             val file = File(artworkDir, "$songId.jpg")
             FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out)
             }
             file.absolutePath
         } catch (_: Exception) {

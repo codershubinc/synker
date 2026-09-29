@@ -41,8 +41,8 @@ class QuazaarBackgroundDaemon : Service() {
     private val serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private var pollJob: Job? = null
-    /** Track the last song title for which we sent artwork so we only transmit art on song change */
-    private var lastArtworkSentTitle: String = ""
+    /** Track the songId for which artwork was successfully transmitted */
+    private var lastArtworkSentSongId: String = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -153,19 +153,35 @@ class QuazaarBackgroundDaemon : Service() {
                     if (isPlaying) {
                         val current = QuazaarApplication.instance.databaseHelper.currentPlaying.value
                         val artists = QuazaarApplication.instance.databaseHelper.splitArtists(artist)
+                        val songId = current?.songId ?: QuazaarApplication.instance.databaseHelper.generateSongId(title, artists.firstOrNull() ?: "")
 
-                        // Encode artwork as Base64 JPEG only when the song changes (not every tick)
+                        // Transmit artwork if not yet sent for this specific song
                         var artworkBase64: String? = null
-                        if (artBitmap != null && title != lastArtworkSentTitle) {
-                            try {
-                                val baos = ByteArrayOutputStream()
-                                artBitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
-                                artworkBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
-                                lastArtworkSentTitle = title
-                            } catch (e: Exception) {
-                                Log.d(TAG, "Artwork encode error: ${e.message}")
+                        if (songId != lastArtworkSentSongId) {
+                            if (artBitmap != null) {
+                                try {
+                                    val baos = ByteArrayOutputStream()
+                                    artBitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos)
+                                    artworkBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+                                    lastArtworkSentSongId = songId
+                                } catch (e: Exception) {
+                                    Log.d(TAG, "Artwork bitmap encode error: ${e.message}")
+                                }
+                            } else if (!current?.artworkPath.isNullOrBlank()) {
+                                // Fallback to saved artwork file on disk for this song
+                                try {
+                                    val file = java.io.File(current?.artworkPath ?: "")
+                                    if (file.exists() && file.length() > 0) {
+                                        val bytes = file.readBytes()
+                                        artworkBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                                        lastArtworkSentSongId = songId
+                                    }
+                                } catch (e: Exception) {
+                                    Log.d(TAG, "Artwork file read error: ${e.message}")
+                                }
                             }
                         }
+
                         QuazaarApplication.instance.syncManager.sendLivePlaybackTick(
                             title = title,
                             artists = artists,

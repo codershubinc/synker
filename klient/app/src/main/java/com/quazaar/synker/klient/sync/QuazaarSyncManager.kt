@@ -1,8 +1,6 @@
 package com.quazaar.synker.klient.sync
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
@@ -16,7 +14,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.*
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
@@ -250,12 +247,17 @@ class QuazaarSyncManager(private val context: Context) {
             tObj.put("last_played", t.lastPlayed)
             tObj.put("total_seconds", t.totalSeconds)
 
-            // Compress artwork to small 256x256 thumbnail so payload stays compact
+            // Include original uncompressed artwork file directly
             if (artworksIncluded < maxArtworksPerSync && !t.artworkPath.isNullOrEmpty()) {
-                val b64 = getCompressedArtworkBase64(t.artworkPath)
-                if (b64 != null) {
-                    tObj.put("artwork_data", b64)
-                    artworksIncluded++
+                try {
+                    val artFile = java.io.File(t.artworkPath)
+                    if (artFile.exists() && artFile.length() > 0) {
+                        val artBytes = artFile.readBytes()
+                        tObj.put("artwork_data", android.util.Base64.encodeToString(artBytes, android.util.Base64.NO_WRAP))
+                        artworksIncluded++
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "Could not read original artwork for ${t.title}: ${e.message}")
                 }
             }
             tracksArr.put(tObj)
@@ -287,30 +289,6 @@ class QuazaarSyncManager(private val context: Context) {
         json.put("daily_stats", dailyArr)
 
         return json.toString()
-    }
-
-    private fun getCompressedArtworkBase64(path: String?): String? {
-        if (path.isNullOrBlank()) return null
-        return try {
-            val file = java.io.File(path)
-            if (!file.exists() || file.length() == 0L) return null
-
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(path, bounds)
-            var sample = 1
-            val target = 256
-            while (bounds.outWidth / sample > target || bounds.outHeight / sample > target) {
-                sample *= 2
-            }
-            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sample }
-            val bitmap = BitmapFactory.decodeFile(path, decodeOptions) ?: return null
-
-            val baos = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 70, baos)
-            android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
-        } catch (_: Exception) {
-            null
-        }
     }
 
     private fun postPayload(
