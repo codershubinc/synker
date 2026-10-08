@@ -36,6 +36,18 @@ class QuazaarSyncManager(private val context: Context) {
         }
     }
 
+            fun getActiveHost(): String? {
+        val manual = context.getSharedPreferences("synker_prefs", android.content.Context.MODE_PRIVATE)
+            .getString("manual_host", "")
+        if (!manual.isNullOrEmpty()) return manual
+        return _discoveredHost.value
+    }
+
+    private fun getAuthToken(): String {
+        return context.getSharedPreferences("synker_prefs", Context.MODE_PRIVATE)
+            .getString("auth_token", "") ?: ""
+    }
+
     private val syncScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val nsdManager = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
 
@@ -161,18 +173,44 @@ class QuazaarSyncManager(private val context: Context) {
         }
     }
 
+        suspend fun pullDataFromServer(dbHelper: com.quazaar.synker.klient.data.MusicDatabaseHelper): Boolean = withContext(Dispatchers.IO) {
+        _syncStatus.value = "Restoring..."
+        val urlString = "http://${getActiveHost()}:${_discoveredPort.value}/api/v1/sync/pull?device_id=$deviceId"
+        var conn: java.net.HttpURLConnection? = null
+        try {
+            val url = java.net.URL(urlString)
+            conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("X-Sync-Token", getAuthToken())
+            
+            if (conn.responseCode in 200..299) {
+                val json = conn.inputStream.bufferedReader().readText()
+                dbHelper.restoreDataFromJson(json)
+                _syncStatus.value = "Restored successfully"
+                return@withContext true
+            } else {
+                _syncStatus.value = "Restore failed: ${conn.responseCode}"
+            }
+        } catch(e: Exception) {
+            _syncStatus.value = "Restore error: ${e.message}"
+        } finally {
+            conn?.disconnect()
+        }
+        return@withContext false
+    }
+
     fun triggerManualSync() {
         syncScope.launch {
             performSync()
         }
     }
 
-    suspend fun performSync(): Boolean = withContext(Dispatchers.IO) {
+    suspend fun performSync(forceOverride: Boolean = false): Boolean = withContext(Dispatchers.IO) {
         _syncStatus.value = "Syncing..."
         val dbHelper = QuazaarApplication.instance.databaseHelper
 
         val payload = try {
-            buildSyncPayload(dbHelper)
+            buildSyncPayload(dbHelper, forceOverride)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to compile sync payload: ${e.message}", e)
             _syncStatus.value = "Error preparing data"
@@ -217,76 +255,84 @@ class QuazaarSyncManager(private val context: Context) {
         }
     }
 
-    private suspend fun buildSyncPayload(dbHelper: com.quazaar.synker.klient.data.MusicDatabaseHelper): String {
-        val tracks = dbHelper.getAllTracks()
-        val plays = dbHelper.getRecentPlayLogs(50)
-        val daily = dbHelper.getDailyStats()
-        val totalSec = dbHelper.totalListenSeconds.value
-        val totalPlays = dbHelper.getTotalPlaysCount()
-
+    suspend fun buildSyncPayload(dbHelper: com.quazaar.synker.klient.data.MusicDatabaseHelper, forceOverride: Boolean = false): String {
         val json = JSONObject()
         json.put("device_id", deviceId)
         json.put("device_name", deviceName)
-        json.put("total_seconds", totalSec)
-        json.put("total_plays", totalPlays)
-
-        val tracksArr = JSONArray()
-        var artworksIncluded = 0
-        val maxArtworksPerSync = 15 // Limit thumbnails per sync to keep payload < 200KB
-
-        for (t in tracks) {
-            val tObj = JSONObject()
-            tObj.put("song_id", t.songId)
-            tObj.put("title", t.title)
-            val artistsArr = JSONArray()
-            t.artists.forEach { artistsArr.put(it) }
-            tObj.put("artists", artistsArr)
-            tObj.put("album", t.album)
-            tObj.put("play_count", t.playCount)
-            tObj.put("first_played", t.firstPlayed)
-            tObj.put("last_played", t.lastPlayed)
-            tObj.put("total_seconds", t.totalSeconds)
-
-            // Include original uncompressed artwork file directly
-            if (artworksIncluded < maxArtworksPerSync && !t.artworkPath.isNullOrEmpty()) {
-                try {
-                    val artFile = java.io.File(t.artworkPath)
-                    if (artFile.exists() && artFile.length() > 0) {
-                        val artBytes = artFile.readBytes()
-                        tObj.put("artwork_data", android.util.Base64.encodeToString(artBytes, android.util.Base64.NO_WRAP))
-                        artworksIncluded++
-                    }
-                } catch (e: Exception) {
-                    Log.d(TAG, "Could not read original artwork for ${t.title}: ${e.message}")
-                }
+        json.put("override_server_stats", forceOverride)
+        
+        if (forceOverride) {
+            json.put("total_seconds", dbHelper.totalListenSeconds.value)
+            json.put("total_plays", dbHelper.getTotalPlaysCount())
+            
+            val tracksArr = JSONArray()
+            val tracks = dbHelper.getAllTracks("")
+            for (t in tracks) {
+                val tObj = JSONObject()
+                tObj.put("song_id", t.songId)
+                tObj.put("title", t.title)
+                val tArtArr = JSONArray()
+                // Use correct field names from TrackStat
+                t.artists.forEach { tArtArr.put(it.trim()) }
+                tObj.put("artists", tArtArr)
+                tObj.put("album", t.album)
+                tObj.put("play_count", t.playCount)
+                tObj.put("total_seconds", t.totalSeconds)
+                tObj.put("last_played", t.lastPlayed)
+                tracksArr.put(tObj)
             }
-            tracksArr.put(tObj)
-        }
-        json.put("tracks", tracksArr)
+            json.put("tracks", tracksArr)
+            
+            val dailyStatsArr = JSONArray()
+            val dailyStats = dbHelper.getDailyStats()
+            for (ds in dailyStats) {
+                val dsObj = JSONObject()
+                dsObj.put("date", ds.date)
+                dsObj.put("total_seconds", ds.totalSeconds)
+                dsObj.put("play_count", ds.playCount)
+                dailyStatsArr.put(dsObj)
+            }
+            json.put("daily_stats", dailyStatsArr)
+            
+            val playsArr = JSONArray()
+            val plays = dbHelper.getRecentPlayLogs(1000) // send a larger chunk of logs
+            for (p in plays) {
+                val pObj = JSONObject()
+                pObj.put("song_id", p.songId)
+                pObj.put("title", p.title)
+                val pArtArr = JSONArray()
+                p.artists.forEach { pArtArr.put(it) }
+                pObj.put("artists", pArtArr)
+                pObj.put("album", p.album)
+                pObj.put("timestamp", p.timestamp)
+                pObj.put("duration_ms", 180000)
+                playsArr.put(pObj)
+            }
+            json.put("plays", playsArr)
+        } else {
+            // Delta sync optimization: do not send totals, tracks, or daily stats
+            json.put("total_seconds", 0)
+            json.put("total_plays", 0)
+            json.put("tracks", JSONArray())
 
-        val playsArr = JSONArray()
-        for (p in plays) {
-            val pObj = JSONObject()
-            pObj.put("song_id", p.songId)
-            pObj.put("title", p.title)
-            val pArtArr = JSONArray()
-            p.artists.forEach { pArtArr.put(it) }
-            pObj.put("artists", pArtArr)
-            pObj.put("album", p.album)
-            pObj.put("timestamp", p.timestamp)
-            playsArr.put(pObj)
+            val playsArr = JSONArray()
+            val plays = dbHelper.getRecentPlayLogs(50)
+            for (p in plays) {
+                val pObj = JSONObject()
+                pObj.put("song_id", p.songId)
+                pObj.put("title", p.title)
+                val pArtArr = JSONArray()
+                p.artists.forEach { pArtArr.put(it) }
+                pObj.put("artists", pArtArr)
+                pObj.put("album", p.album)
+                pObj.put("timestamp", p.timestamp)
+                // Add duration for delta sync
+                pObj.put("duration_ms", 180000) // Dummy default or you would get it from db if stored
+                playsArr.put(pObj)
+            }
+            json.put("plays", playsArr)
+            json.put("daily_stats", JSONArray())
         }
-        json.put("plays", playsArr)
-
-        val dailyArr = JSONArray()
-        for (d in daily) {
-            val dObj = JSONObject()
-            dObj.put("date", d.date)
-            dObj.put("total_seconds", d.totalSeconds)
-            dObj.put("play_count", d.playCount)
-            dailyArr.put(dObj)
-        }
-        json.put("daily_stats", dailyArr)
 
         return json.toString()
     }
@@ -308,6 +354,7 @@ class QuazaarSyncManager(private val context: Context) {
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("X-Device-ID", deviceId)
                 setRequestProperty("X-Device-Name", deviceName)
+                setRequestProperty("X-Sync-Token", getAuthToken()) // Hardcoded for now
             }
 
             OutputStreamWriter(conn.outputStream, "UTF-8").use { writer ->
@@ -333,7 +380,7 @@ class QuazaarSyncManager(private val context: Context) {
         val now = System.currentTimeMillis()
         if (webSocketConnecting || activeWebSocket != null || (now - lastWsConnectAttemptMs < 3000L)) return
 
-        val host = _discoveredHost.value
+        val host = getActiveHost()
         val port = _discoveredPort.value
         val tunnelWsUrl = BACKUP_TUNNEL_URL
             .replace("https://", "wss://")
@@ -365,6 +412,7 @@ class QuazaarSyncManager(private val context: Context) {
             .url(url)
             .addHeader("X-Device-ID", deviceId)
             .addHeader("X-Device-Name", deviceName)
+            .addHeader("X-Sync-Token", getAuthToken()) // Hardcoded for now
             .build()
 
         Log.d(TAG, "Attempting WebSocket connection to $url")

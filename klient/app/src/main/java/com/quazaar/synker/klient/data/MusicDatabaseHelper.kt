@@ -591,6 +591,59 @@ class MusicDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         return@withContext list
     }
 
+    
+    suspend fun restoreDataFromJson(jsonStr: String) = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val json = org.json.JSONObject(jsonStr)
+            db.execSQL("DELETE FROM tracks")
+            db.execSQL("DELETE FROM play_logs")
+            db.execSQL("DELETE FROM daily_stats")
+            
+            val tracks = json.optJSONArray("tracks")
+            if (tracks != null) {
+                for (i in 0 until tracks.length()) {
+                    val t = tracks.getJSONObject(i)
+                    val cv = ContentValues().apply {
+                        put("song_id", t.optString("song_id"))
+                        put("title", t.optString("title"))
+                        put("artists_json", t.optJSONArray("artists")?.toString() ?: "[]")
+                        put("album", t.optString("album", ""))
+                        put("play_count", t.optInt("play_count"))
+                        put("first_played", t.optLong("first_played"))
+                        put("last_played", t.optLong("last_played"))
+                        put("total_seconds", t.optLong("total_seconds"))
+                        put("artwork_path", "")
+                    }
+                    db.insert("tracks", null, cv)
+                }
+            }
+            
+            val plays = json.optJSONArray("plays")
+            if (plays != null) {
+                for (i in 0 until plays.length()) {
+                    val p = plays.getJSONObject(i)
+                    val cv = ContentValues().apply {
+                        put("event_id", p.optString("song_id") + "_" + p.optLong("timestamp"))
+                        put("song_id", p.optString("song_id"))
+                        put("title", p.optString("title"))
+                        put("artists_json", p.optJSONArray("artists")?.toString() ?: "[]")
+                        put("album", p.optString("album", ""))
+                        put("timestamp", p.optLong("timestamp"))
+                    }
+                    db.insert("play_logs", null, cv)
+                }
+            }
+            db.setTransactionSuccessful()
+            _totalListenSeconds.value = json.optLong("total_seconds", 0L)
+        } catch (e: Exception) {
+            Log.e("DBHelper", "Restore failed", e)
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     suspend fun clearAllData(): Unit = withContext(Dispatchers.IO) {
         val db = writableDatabase
         db.beginTransaction()

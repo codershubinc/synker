@@ -81,7 +81,8 @@ fun MainMediaDashboard(
     syncStatus: String = "Ready",
     isWebSocketConnected: Boolean = false,
     onManualSync: () -> Unit = {},
-    onRetryWebSocket: () -> Unit = {}
+    onRetryWebSocket: () -> Unit,
+    onOpenSettings: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf(AppTab.DASHBOARD) }
     var showClearWarningDialog by remember { mutableStateOf(false) }
@@ -315,7 +316,7 @@ fun MainMediaDashboard(
                         }
 
                         IconButton(
-                            onClick = { showClearWarningDialog = true },
+                            onClick = onOpenSettings,
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
@@ -323,8 +324,8 @@ fun MainMediaDashboard(
                                 .border(1.dp, AppleBorder, CircleShape)
                         ) {
                             Icon(
-                                Icons.Outlined.DeleteOutline,
-                                contentDescription = "Clear logs",
+                                Icons.Filled.Settings,
+                                contentDescription = "Settings",
                                 tint = AppleTextSecondary,
                                 modifier = Modifier.size(16.dp)
                             )
