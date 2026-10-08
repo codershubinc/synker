@@ -1,0 +1,17 @@
+# Build distribution artifacts
+dist/
+/dist/
+
+# Daemon local binaries
+daemon/bin/
+daemon/quazaard
+daemon/main
+
+# Android / Gradle artifacts
+.gradle/
+build/
+*.apk
+.kotlin/
+local.properties
+.idea/
+*.iml

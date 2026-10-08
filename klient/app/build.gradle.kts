@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,16 +7,31 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+val releaseProperties = Properties().apply {
+    val releaseFile = rootProject.file("RELEASE")
+    if (releaseFile.exists()) {
+        releaseFile.inputStream().use { load(it) }
+    }
+}
+
+val appVersion = releaseProperties.getProperty("VERSION", "0.0.1")
+val appChannel = releaseProperties.getProperty("CHANNEL", "beta")
+val appVersionName = if (appChannel.isNotEmpty()) "$appVersion-$appChannel" else appVersion
+val appVersionCode = releaseProperties.getProperty("VERSION_CODE", "1").toIntOrNull() ?: 1
+val appMinSdk = releaseProperties.getProperty("MIN_SDK", "26").toIntOrNull() ?: 26
+val appTargetSdk = releaseProperties.getProperty("TARGET_SDK", "35").toIntOrNull() ?: 35
+val appCompileSdk = releaseProperties.getProperty("COMPILE_SDK", "35").toIntOrNull() ?: 35
+
 android {
     namespace = "com.quazaar.synker.klient"
-    compileSdk = 35
+    compileSdk = appCompileSdk
 
     defaultConfig {
         applicationId = "com.quazaar.synker.klient"
-        minSdk = 26
-        targetSdk = 35
-        versionCode = 1
-        versionName = "0.0.1"
+        minSdk = appMinSdk
+        targetSdk = appTargetSdk
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

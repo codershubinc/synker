@@ -61,7 +61,7 @@ class QuazaarBackgroundDaemon : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Quazaar Music Daemon",
+                "Synker Music Daemon",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Keeps Apple Music tracking active continuously in the background"

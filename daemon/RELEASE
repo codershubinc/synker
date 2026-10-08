@@ -1,0 +1,12 @@
+# Synker Daemon Release & Version Metadata
+# Format: KEY=VALUE (Standard POSIX / shell dotenv compatible)
+
+VERSION=0.0.2
+CHANNEL=beta
+BUILD_NUMBER=2
+RELEASE_NAME="Aurora Borealis"
+CODENAME=aurora
+DESCRIPTION="Synker Daemon - Background MPRIS sync & Apple Music-styled dashboard for Linux"
+AUTHOR="CodersHub"
+HOMEPAGE="https://github.com/codershubinc/synker"
+MIN_GO_VERSION=1.22

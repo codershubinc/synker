@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Quazaar Music Synker Daemon - Linux Installer & systemd Auto-Start
+# Synker Music Daemon - Linux Installer & systemd Auto-Start
 # Repository: https://github.com/codershubinc/synker
 # ==============================================================================
 # Usage:
@@ -19,16 +19,20 @@
 set -euo pipefail
 
 GITHUB_REPO="codershubinc/synker"
-DEFAULT_TAG="daemon-v0.0.1-beta"
+DEFAULT_TAG="daemon-v0.0.2-beta"
 TARGET_TAG="${DEFAULT_TAG}"
 DEFAULT_PORT=4242
 PORT="${DEFAULT_PORT}"
+FORCE_RELEASE=false
 
 BIN_DIR="${HOME}/.local/bin"
 SERVICE_DIR="${HOME}/.config/systemd/user"
-CONFIG_DIR="${HOME}/.config/quazaar"
-SERVICE_NAME="quazaard.service"
-TARGET_BIN="${BIN_DIR}/quazaard"
+CONFIG_DIR="${HOME}/.config/synker"
+LEGACY_CONFIG_DIR="${HOME}/.config/quazaar"
+SERVICE_NAME="synkerd.service"
+LEGACY_SERVICE_NAME="quazaard.service"
+TARGET_BIN="${BIN_DIR}/synkerd"
+LEGACY_BIN="${BIN_DIR}/quazaard"
 
 # Colors for terminal formatting
 RED='\033[0;31m'
@@ -42,7 +46,7 @@ NC='\033[0m'
 print_banner() {
     echo -e "${CYAN}${BOLD}"
     echo "  ================================================================"
-    echo "    Quazaar Music Synker Daemon - Linux Auto-Start Installer"
+    echo "    Synker Music Daemon - Linux Auto-Start Installer"
     echo "    Repository: https://github.com/${GITHUB_REPO}"
     echo "  ================================================================"
     echo -e "${NC}"
@@ -96,30 +100,71 @@ download_file() {
     fi
 }
 
+migrate_legacy_data() {
+    # If legacy ~/.config/quazaar exists and ~/.config/synker does not, migrate seamlessly
+    if [ -d "${LEGACY_CONFIG_DIR}" ] && [ ! -d "${CONFIG_DIR}" ] && [ ! -L "${CONFIG_DIR}" ]; then
+        echo -e "${CYAN}[*] Migrating existing database from ${LEGACY_CONFIG_DIR} to ${CONFIG_DIR}...${NC}"
+        mkdir -p "$(dirname "${CONFIG_DIR}")"
+        cp -r "${LEGACY_CONFIG_DIR}" "${CONFIG_DIR}"
+        echo -e "${GREEN}[✓] Synker data preserved in ${CONFIG_DIR}.${NC}"
+    fi
+    mkdir -p "${CONFIG_DIR}"
+
+    # Stop legacy quazaard service if currently active
+    if systemctl --user is-active --quiet "${LEGACY_SERVICE_NAME}" 2>/dev/null; then
+        echo -e "${YELLOW}[!] Stopping legacy ${LEGACY_SERVICE_NAME}...${NC}"
+        systemctl --user stop "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
+    fi
+    if systemctl --user is-enabled --quiet "${LEGACY_SERVICE_NAME}" 2>/dev/null; then
+        systemctl --user disable "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
+    fi
+    rm -f "${SERVICE_DIR}/${LEGACY_SERVICE_NAME}"
+}
+
 fetch_binary_from_release() {
     echo -e "${BLUE}[*] Resolving release binary from GitHub (${GITHUB_REPO})...${NC}"
     mkdir -p "${BIN_DIR}"
     local tmp_bin
     tmp_bin="$(mktemp)"
 
-    local download_success=false
-
-    # Strategy 1: Query GitHub API for matching release assets
-    local api_url="https://api.github.com/repos/${GITHUB_REPO}/releases"
-    local json_data=""
-    if command -v curl >/dev/null 2>&1; then
-        json_data="$(curl -sSL "${api_url}" 2>/dev/null || true)"
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
+    local has_local_source=false
+    if [ -d "${script_dir}/daemon" ] && command -v go >/dev/null 2>&1; then
+        has_local_source=true
     fi
 
-    if [ -n "${json_data}" ] && [ "${json_data}" != "[]" ]; then
-        # Search for asset URLs matching architecture and daemon
-        local asset_url
-        asset_url="$(echo "${json_data}" | grep -oE "https://github.com/${GITHUB_REPO}/releases/download/[^\"]+(${ARCH}|quazaard|daemon)[^\"]*" | head -n 1 || true)"
-        
-        if [ -n "${asset_url}" ]; then
-            echo -e "${CYAN}[*] Downloading from release asset: ${asset_url}${NC}"
-            if download_file "${asset_url}" "${tmp_bin}"; then
-                download_success=true
+    # If running locally from repo and release download wasn't explicitly forced, build from local source
+    if [ "${FORCE_RELEASE}" = false ] && [ "${has_local_source}" = true ]; then
+        echo -e "${BLUE}[*] Local repository detected. Compiling synkerd from local source...${NC}"
+        local cmd_pkg="./cmd/synkerd"
+        if [ ! -d "${script_dir}/daemon/cmd/synkerd" ] && [ ! -L "${script_dir}/daemon/cmd/synkerd" ]; then
+            cmd_pkg="./cmd/quazaard"
+        fi
+        if (cd "${script_dir}/daemon" && go build -trimpath -ldflags="-s -w" -o "${tmp_bin}" "${cmd_pkg}"); then
+            download_success=true
+            echo -e "${GREEN}[✓] Built synkerd successfully from local source.${NC}"
+        fi
+    fi
+
+    # Strategy 1: Query GitHub API for matching release assets (when remote install or forced release)
+    if [ "${download_success}" = false ]; then
+        local api_url="https://api.github.com/repos/${GITHUB_REPO}/releases"
+        local json_data=""
+        if command -v curl >/dev/null 2>&1; then
+            json_data="$(curl -sSL "${api_url}" 2>/dev/null || true)"
+        fi
+
+        if [ -n "${json_data}" ] && [ "${json_data}" != "[]" ]; then
+            # Search for asset URLs matching architecture, synkerd, or daemon
+            local asset_url
+            asset_url="$(echo "${json_data}" | grep -oE "https://github.com/${GITHUB_REPO}/releases/download/[^\"]+(${ARCH}|synkerd|synker|quazaard|daemon)[^\"]*" | head -n 1 || true)"
+            
+            if [ -n "${asset_url}" ]; then
+                echo -e "${CYAN}[*] Downloading from release asset: ${asset_url}${NC}"
+                if download_file "${asset_url}" "${tmp_bin}"; then
+                    download_success=true
+                fi
             fi
         fi
     fi
@@ -127,9 +172,13 @@ fetch_binary_from_release() {
     # Strategy 2: Direct release download fallback pattern
     if [ "${download_success}" = false ]; then
         local direct_urls=(
+            "https://github.com/${GITHUB_REPO}/releases/download/${TARGET_TAG}/synkerd-linux-${ARCH}"
+            "https://github.com/${GITHUB_REPO}/releases/download/${TARGET_TAG}/synkerd"
             "https://github.com/${GITHUB_REPO}/releases/download/${TARGET_TAG}/quazaard-linux-${ARCH}"
             "https://github.com/${GITHUB_REPO}/releases/download/${TARGET_TAG}/quazaard"
             "https://github.com/${GITHUB_REPO}/releases/download/${TARGET_TAG}/daemon-linux-${ARCH}"
+            "https://github.com/${GITHUB_REPO}/releases/latest/download/synkerd-linux-${ARCH}"
+            "https://github.com/${GITHUB_REPO}/releases/latest/download/synkerd"
             "https://github.com/${GITHUB_REPO}/releases/latest/download/quazaard-linux-${ARCH}"
             "https://github.com/${GITHUB_REPO}/releases/latest/download/quazaard"
         )
@@ -145,26 +194,31 @@ fetch_binary_from_release() {
         done
     fi
 
-    # Strategy 3: Local build fallback if in git repository and go is installed
-    if [ "${download_success}" = false ]; then
-        echo -e "${YELLOW}[!] Precompiled release binary not reachable. Checking local source...${NC}"
-        local script_dir
-        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
-        if [ -d "${script_dir}/daemon" ] && command -v go >/dev/null 2>&1; then
-            echo -e "${BLUE}[*] Compiling quazaard from local source using Go...${NC}"
-            (cd "${script_dir}/daemon" && go build -trimpath -ldflags="-s -w" -o "${tmp_bin}" ./cmd/quazaard)
-            download_success=true
-        else
-            echo -e "${RED}[ERROR] Could not fetch release binary for ${TARGET_TAG} (${ARCH}).${NC}"
-            echo -e "Please ensure the release exists at: https://github.com/${GITHUB_REPO}/releases"
-            rm -f "${tmp_bin}"
-            exit 1
+    # Strategy 3: Local build fallback if not already tried
+    if [ "${download_success}" = false ] && [ "${has_local_source}" = true ]; then
+        echo -e "${BLUE}[*] Compiling synkerd from local source using Go...${NC}"
+        local cmd_pkg="./cmd/synkerd"
+        if [ ! -d "${script_dir}/daemon/cmd/synkerd" ] && [ ! -L "${script_dir}/daemon/cmd/synkerd" ]; then
+            cmd_pkg="./cmd/quazaard"
         fi
+        (cd "${script_dir}/daemon" && go build -trimpath -ldflags="-s -w" -o "${tmp_bin}" "${cmd_pkg}")
+        download_success=true
+    fi
+
+    if [ "${download_success}" = false ]; then
+        echo -e "${RED}[ERROR] Could not fetch release binary for ${TARGET_TAG} (${ARCH}).${NC}"
+        echo -e "Please ensure the release exists at: https://github.com/${GITHUB_REPO}/releases"
+        rm -f "${tmp_bin}"
+        exit 1
     fi
 
     mv "${tmp_bin}" "${TARGET_BIN}"
     chmod +x "${TARGET_BIN}"
-    echo -e "${GREEN}[✓] Quazaar daemon binary installed to: ${TARGET_BIN}${NC}"
+
+    # Also symlink legacy quazaard -> synkerd for full backward compatibility
+    ln -sf "synkerd" "${LEGACY_BIN}"
+
+    echo -e "${GREEN}[✓] Synker daemon binary installed to: ${TARGET_BIN}${NC}"
 }
 
 setup_systemd_service() {
@@ -174,7 +228,7 @@ setup_systemd_service() {
 
     cat <<EOF > "${SERVICE_DIR}/${SERVICE_NAME}"
 [Unit]
-Description=Quazaar Music Synker Daemon (Apple Music & MPRIS Sync)
+Description=Synker Music Daemon (Apple Music & MPRIS Sync)
 Documentation=https://github.com/${GITHUB_REPO}
 After=network.target sound.target
 PartOf=graphical-session.target
@@ -207,7 +261,7 @@ EOF
 }
 
 show_status() {
-    echo -e "${BLUE}[*] Daemon service status:${NC}"
+    echo -e "${BLUE}[*] Synker daemon service status:${NC}"
     systemctl --user status "${SERVICE_NAME}" --no-pager || true
 }
 
@@ -217,25 +271,38 @@ show_logs() {
 }
 
 uninstall_service() {
-    echo -e "${YELLOW}[!] Removing Quazaar Synker daemon service...${NC}"
+    echo -e "${YELLOW}[!] Removing Synker daemon service...${NC}"
     
+    # Stop and disable synkerd
     if systemctl --user is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
         systemctl --user stop "${SERVICE_NAME}"
     fi
-
     if systemctl --user is-enabled --quiet "${SERVICE_NAME}" 2>/dev/null; then
         systemctl --user disable "${SERVICE_NAME}"
     fi
-
     rm -f "${SERVICE_DIR}/${SERVICE_NAME}"
+
+    # Clean legacy quazaard service if present
+    if systemctl --user is-active --quiet "${LEGACY_SERVICE_NAME}" 2>/dev/null; then
+        systemctl --user stop "${LEGACY_SERVICE_NAME}"
+    fi
+    if systemctl --user is-enabled --quiet "${LEGACY_SERVICE_NAME}" 2>/dev/null; then
+        systemctl --user disable "${LEGACY_SERVICE_NAME}"
+    fi
+    rm -f "${SERVICE_DIR}/${LEGACY_SERVICE_NAME}"
+
     systemctl --user daemon-reload 2>/dev/null || true
 
     if [ -f "${TARGET_BIN}" ]; then
         rm -f "${TARGET_BIN}"
         echo -e "${GREEN}[✓] Removed binary: ${TARGET_BIN}${NC}"
     fi
+    if [ -L "${LEGACY_BIN}" ] || [ -f "${LEGACY_BIN}" ]; then
+        rm -f "${LEGACY_BIN}"
+        echo -e "${GREEN}[✓] Removed legacy binary alias: ${LEGACY_BIN}${NC}"
+    fi
 
-    echo -e "${GREEN}[✓] Quazaar service successfully uninstalled.${NC}"
+    echo -e "${GREEN}[✓] Synker service successfully uninstalled.${NC}"
     echo -e "${CYAN}Note: Your listening database and artwork in ${CONFIG_DIR} were preserved.${NC}"
 }
 
@@ -250,6 +317,14 @@ while [[ $# -gt 0 ]]; do
         -p|--port)
             PORT="$2"
             shift 2
+            ;;
+        -r|--release)
+            FORCE_RELEASE=true
+            shift
+            ;;
+        -b|--build|--local)
+            FORCE_RELEASE=false
+            shift
             ;;
         -s|--status)
             ACTION="status"
@@ -268,7 +343,9 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: ./install.sh [options]"
             echo ""
             echo "Options:"
-            echo "  (no args)               Pull release, install & setup systemd auto-start"
+            echo "  (no args)               Install synkerd & setup systemd auto-start"
+            echo "  -b, --build, --local    Build & install from local repository source using Go"
+            echo "  -r, --release           Force download precompiled release binary from GitHub"
             echo "  -v, --version <tag>     Install specific release tag (default: ${DEFAULT_TAG})"
             echo "  -p, --port <port>       Daemon Web UI / REST port (default: ${DEFAULT_PORT})"
             echo "  -s, --status            Inspect systemd service status"
@@ -299,12 +376,13 @@ case "${ACTION}" in
         print_banner
         detect_arch
         check_prerequisites
+        migrate_legacy_data
         fetch_binary_from_release
         setup_systemd_service
 
         echo ""
         echo -e "${GREEN}${BOLD}================================================================${NC}"
-        echo -e "${GREEN}${BOLD}  Quazaar Daemon is active and configured to auto-start!        ${NC}"
+        echo -e "${GREEN}${BOLD}  Synker Daemon (synkerd) is active & configured to auto-start! ${NC}"
         echo -e "${GREEN}${BOLD}================================================================${NC}"
         echo -e "  • Web Dashboard & API : ${CYAN}http://localhost:${PORT}${NC}"
         echo -e "  • REST Current Song   : ${CYAN}http://localhost:${PORT}/api/v1/current${NC}"
@@ -313,10 +391,11 @@ case "${ACTION}" in
         echo -e "  • Database & Artworks : ${CYAN}${CONFIG_DIR}${NC}"
         echo ""
         echo -e "${BOLD}Helpful Commands:${NC}"
-        echo -e "  Status  : ${YELLOW}./install.sh --status${NC}  or  ${YELLOW}systemctl --user status ${SERVICE_NAME}${NC}"
-        echo -e "  Logs    : ${YELLOW}./install.sh --logs${NC}    or  ${YELLOW}journalctl --user -u ${SERVICE_NAME} -f${NC}"
-        echo -e "  Restart : ${YELLOW}systemctl --user restart ${SERVICE_NAME}${NC}"
-        echo -e "  Remove  : ${YELLOW}./install.sh --uninstall${NC}"
+        echo -e "  Status  : ${YELLOW}synkerd status${NC}   or  ${YELLOW}systemctl --user status ${SERVICE_NAME}${NC}"
+        echo -e "  Logs    : ${YELLOW}synkerd logs${NC}     or  ${YELLOW}journalctl --user -u ${SERVICE_NAME} -f${NC}"
+        echo -e "  Restart : ${YELLOW}synkerd restart${NC}  or  ${YELLOW}systemctl --user restart ${SERVICE_NAME}${NC}"
+        echo -e "  Stop    : ${YELLOW}synkerd stop${NC}     or  ${YELLOW}systemctl --user stop ${SERVICE_NAME}${NC}"
+        echo -e "  Remove  : ${YELLOW}synkerd uninstall${NC}"
         echo ""
         ;;
 esac

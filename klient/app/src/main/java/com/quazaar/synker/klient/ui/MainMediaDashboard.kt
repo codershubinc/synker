@@ -1,6 +1,7 @@
 package com.quazaar.synker.klient.ui
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -31,15 +33,30 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-// Pure AMOLED palette
-val AmoledBlack = Color(0xFF000000)
-val AmoledSurface = Color(0xFF0A0A0A)
-val AmoledCard = Color(0xFF121212)
-val AmoledBorder = Color(0xFF1E1E1E)
-val AmoledAccent = Color(0xFFFA2D48)
-val AmoledTextPrimary = Color(0xFFFFFFFF)
-val AmoledTextSecondary = Color(0xFF8E8E93)
-val AmoledGreen = Color(0xFF30D158)
+// ── Apple Music Palette ──────────────────────────────────────────────────────
+val AppleBlack = Color(0xFF000000)
+val AppleSurface = Color(0xFF141416)
+val AppleCardBg = Color(0xFF1C1C1E)
+val AppleCardHover = Color(0xFF28282C)
+val AppleBorder = Color(0xFF2C2C2E)
+val AppleBorderHighlight = Color(0xFF3A3A3C)
+
+// Iconic Apple Music Vibrant Red / Crimson Pink
+val AppleAccent = Color(0xFFFA243C)
+val AppleAccentHover = Color(0xFFFF375F)
+val AppleAccentGlow = Color(0x40FA243C)
+
+// Extended Apple System Colors
+val AppleGreen = Color(0xFF30D158)
+val AppleIndigo = Color(0xFF5E5CE6)
+val ApplePurple = Color(0xFFBF5AF2)
+val AppleCyan = Color(0xFF64D2FF)
+val AppleAmber = Color(0xFFFF9F0A)
+
+// Typography Colors
+val AppleTextPrimary = Color(0xFFFFFFFF)
+val AppleTextSecondary = Color(0xFF8E8E93)
+val AppleTextTertiary = Color(0xFF636366)
 
 enum class AppTab {
     DASHBOARD,
@@ -70,52 +87,71 @@ fun MainMediaDashboard(
     var showClearWarningDialog by remember { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = AmoledBlack,
+        containerColor = AppleBlack,
         bottomBar = {
             NavigationBar(
-                containerColor = AmoledSurface,
+                containerColor = AppleSurface.copy(alpha = 0.95f),
                 tonalElevation = 0.dp,
-                modifier = Modifier.border(width = 1.dp, color = AmoledBorder, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                modifier = Modifier.border(
+                    width = 1.dp,
+                    color = AppleBorder,
+                    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                )
             ) {
                 NavigationBarItem(
                     selected = selectedTab == AppTab.DASHBOARD,
                     onClick = { selectedTab = AppTab.DASHBOARD },
-                    icon = { Icon(if (selectedTab == AppTab.DASHBOARD) Icons.Filled.Dashboard else Icons.Outlined.Dashboard, contentDescription = "Dashboard") },
-                    label = { Text("Overview", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    icon = {
+                        Icon(
+                            if (selectedTab == AppTab.DASHBOARD) Icons.Filled.PlayCircle else Icons.Outlined.PlayCircle,
+                            contentDescription = "Listen Now"
+                        )
+                    },
+                    label = { Text("Listen Now", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AmoledAccent,
-                        selectedTextColor = AmoledAccent,
-                        unselectedIconColor = AmoledTextSecondary,
-                        unselectedTextColor = AmoledTextSecondary,
-                        indicatorColor = AmoledAccent.copy(alpha = 0.15f)
+                        selectedIconColor = AppleAccent,
+                        selectedTextColor = AppleAccent,
+                        unselectedIconColor = AppleTextSecondary,
+                        unselectedTextColor = AppleTextSecondary,
+                        indicatorColor = AppleAccent.copy(alpha = 0.15f)
                     )
                 )
 
                 NavigationBarItem(
                     selected = selectedTab == AppTab.LIBRARY,
                     onClick = { selectedTab = AppTab.LIBRARY },
-                    icon = { Icon(if (selectedTab == AppTab.LIBRARY) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic, contentDescription = "Library") },
-                    label = { Text("Tracks", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    icon = {
+                        Icon(
+                            if (selectedTab == AppTab.LIBRARY) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic,
+                            contentDescription = "Songs"
+                        )
+                    },
+                    label = { Text("Songs", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AmoledAccent,
-                        selectedTextColor = AmoledAccent,
-                        unselectedIconColor = AmoledTextSecondary,
-                        unselectedTextColor = AmoledTextSecondary,
-                        indicatorColor = AmoledAccent.copy(alpha = 0.15f)
+                        selectedIconColor = AppleAccent,
+                        selectedTextColor = AppleAccent,
+                        unselectedIconColor = AppleTextSecondary,
+                        unselectedTextColor = AppleTextSecondary,
+                        indicatorColor = AppleAccent.copy(alpha = 0.15f)
                     )
                 )
 
                 NavigationBarItem(
                     selected = selectedTab == AppTab.ABOUT,
                     onClick = { selectedTab = AppTab.ABOUT },
-                    icon = { Icon(if (selectedTab == AppTab.ABOUT) Icons.Filled.Info else Icons.Outlined.Info, contentDescription = "About") },
-                    label = { Text("About", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    icon = {
+                        Icon(
+                            if (selectedTab == AppTab.ABOUT) Icons.Filled.Info else Icons.Outlined.Info,
+                            contentDescription = "About"
+                        )
+                    },
+                    label = { Text("About", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AmoledAccent,
-                        selectedTextColor = AmoledAccent,
-                        unselectedIconColor = AmoledTextSecondary,
-                        unselectedTextColor = AmoledTextSecondary,
-                        indicatorColor = AmoledAccent.copy(alpha = 0.15f)
+                        selectedIconColor = AppleAccent,
+                        selectedTextColor = AppleAccent,
+                        unselectedIconColor = AppleTextSecondary,
+                        unselectedTextColor = AppleTextSecondary,
+                        indicatorColor = AppleAccent.copy(alpha = 0.15f)
                     )
                 )
             }
@@ -124,15 +160,33 @@ fun MainMediaDashboard(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(AmoledBlack)
+                .background(AppleBlack)
                 .padding(innerPadding)
         ) {
+            // Apple Music Ambient Radiant Aurora in background
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                AppleAccent.copy(alpha = 0.15f),
+                                AppleIndigo.copy(alpha = 0.08f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 18.dp)
             ) {
                 Spacer(modifier = Modifier.height(14.dp))
+
+                // Apple Music Header Bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -144,24 +198,47 @@ fun MainMediaDashboard(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(AmoledAccent),
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(AppleAccent, AppleAccentHover)
+                                    )
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.MusicNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            Icon(
+                                Icons.Filled.MusicNote,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
                         Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    " Music",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = AppleTextPrimary,
+                                    letterSpacing = (-0.3).sp
+                                )
+                                Text(
+                                    "Synker",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AppleAccent,
+                                    letterSpacing = (-0.3).sp
+                                )
+                            }
                             Text(
-                                "Apple Music Tracker",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AmoledTextPrimary
-                            )
-                            Text(
-                                "v0.0.1",
+                                "Live Listening Intelligence",
                                 fontSize = 11.sp,
-                                color = AmoledTextSecondary
+                                fontWeight = FontWeight.Medium,
+                                color = AppleTextSecondary
                             )
                         }
                     }
@@ -170,14 +247,18 @@ fun MainMediaDashboard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Live WebSocket Status / Retry Pill
+                        // Live WebSocket Status Pill
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(999.dp))
-                                .background(if (isWebSocketConnected) AmoledGreen.copy(alpha = 0.15f) else Color(0xFFF59E0B).copy(alpha = 0.12f))
+                                .background(
+                                    if (isWebSocketConnected) AppleGreen.copy(alpha = 0.15f)
+                                    else AppleAmber.copy(alpha = 0.12f)
+                                )
                                 .border(
                                     1.dp,
-                                    if (isWebSocketConnected) AmoledGreen.copy(alpha = 0.4f) else Color(0xFFF59E0B).copy(alpha = 0.35f),
+                                    if (isWebSocketConnected) AppleGreen.copy(alpha = 0.4f)
+                                    else AppleAmber.copy(alpha = 0.35f),
                                     RoundedCornerShape(999.dp)
                                 )
                                 .clickable { onRetryWebSocket() }
@@ -192,11 +273,11 @@ fun MainMediaDashboard(
                                         modifier = Modifier
                                             .size(6.dp)
                                             .clip(CircleShape)
-                                            .background(AmoledGreen)
+                                            .background(AppleGreen)
                                     )
                                     Text(
-                                        "WS LIVE",
-                                        color = AmoledGreen,
+                                        "LIVE",
+                                        color = AppleGreen,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -204,12 +285,12 @@ fun MainMediaDashboard(
                                     Icon(
                                         Icons.Filled.Refresh,
                                         contentDescription = "Retry WebSocket",
-                                        tint = Color(0xFFF59E0B),
+                                        tint = AppleAmber,
                                         modifier = Modifier.size(10.dp)
                                     )
                                     Text(
-                                        "WS RETRY",
-                                        color = Color(0xFFF59E0B),
+                                        "RETRY",
+                                        color = AppleAmber,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -217,16 +298,17 @@ fun MainMediaDashboard(
                             }
                         }
 
+                        // Plays committed pill
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(999.dp))
-                                .background(AmoledCard)
-                                .border(1.dp, AmoledBorder, RoundedCornerShape(999.dp))
+                                .background(AppleCardBg)
+                                .border(1.dp, AppleBorderHighlight, RoundedCornerShape(999.dp))
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
                             Text(
                                 "$totalPlays plays",
-                                color = AmoledAccent,
+                                color = AppleAccent,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -237,13 +319,13 @@ fun MainMediaDashboard(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(AmoledCard)
-                                .border(1.dp, AmoledBorder, CircleShape)
+                                .background(AppleCardBg)
+                                .border(1.dp, AppleBorder, CircleShape)
                         ) {
                             Icon(
                                 Icons.Outlined.DeleteOutline,
                                 contentDescription = "Clear logs",
-                                tint = AmoledTextSecondary,
+                                tint = AppleTextSecondary,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -253,21 +335,21 @@ fun MainMediaDashboard(
                 if (showClearWarningDialog) {
                     AlertDialog(
                         onDismissRequest = { showClearWarningDialog = false },
-                        containerColor = AmoledSurface,
-                        titleContentColor = AmoledTextPrimary,
-                        textContentColor = AmoledTextSecondary,
+                        containerColor = AppleSurface,
+                        titleContentColor = AppleTextPrimary,
+                        textContentColor = AppleTextSecondary,
                         icon = {
                             Box(
                                 modifier = Modifier
-                                    .size(44.dp)
+                                    .size(46.dp)
                                     .clip(CircleShape)
-                                    .background(AmoledAccent.copy(alpha = 0.15f)),
+                                    .background(AppleAccent.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     Icons.Filled.WarningAmber,
                                     contentDescription = null,
-                                    tint = AmoledAccent,
+                                    tint = AppleAccent,
                                     modifier = Modifier.size(26.dp)
                                 )
                             }
@@ -277,7 +359,7 @@ fun MainMediaDashboard(
                                 "Clear All Play Logs?",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = AmoledTextPrimary
+                                color = AppleTextPrimary
                             )
                         },
                         text = {
@@ -285,7 +367,7 @@ fun MainMediaDashboard(
                                 "This will permanently delete all logged playback history, tracked song counts, listening time, and saved album artworks. This cannot be undone.",
                                 fontSize = 13.sp,
                                 lineHeight = 18.sp,
-                                color = AmoledTextSecondary
+                                color = AppleTextSecondary
                             )
                         },
                         confirmButton = {
@@ -295,10 +377,10 @@ fun MainMediaDashboard(
                                     onClearAllLogs()
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = AmoledAccent,
+                                    containerColor = AppleAccent,
                                     contentColor = Color.White
                                 ),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(10.dp)
                             ) {
                                 Text("Clear Everything", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
@@ -307,11 +389,11 @@ fun MainMediaDashboard(
                             TextButton(
                                 onClick = { showClearWarningDialog = false }
                             ) {
-                                Text("Cancel", color = AmoledTextSecondary, fontSize = 12.sp)
+                                Text("Cancel", color = AppleTextSecondary, fontSize = 12.sp)
                             }
                         },
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.border(1.dp, AmoledBorder, RoundedCornerShape(16.dp))
+                        shape = RoundedCornerShape(18.dp),
+                        modifier = Modifier.border(1.dp, AppleBorderHighlight, RoundedCornerShape(18.dp))
                     )
                 }
 
@@ -322,9 +404,9 @@ fun MainMediaDashboard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF2A1208))
-                            .border(1.dp, Color(0xFFFF9500).copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF261808))
+                            .border(1.dp, AppleAmber.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
                             .clickable { onOpenNotificationSettings() }
                             .padding(12.dp)
                     ) {
@@ -332,7 +414,7 @@ fun MainMediaDashboard(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Filled.Warning, contentDescription = null, tint = Color(0xFFFF9500), modifier = Modifier.size(22.dp))
+                            Icon(Icons.Filled.Warning, contentDescription = null, tint = AppleAmber, modifier = Modifier.size(22.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     "Notification Access Needed",
@@ -341,7 +423,7 @@ fun MainMediaDashboard(
                                     color = Color.White
                                 )
                                 Text(
-                                    "Tap to enable tracking",
+                                    "Tap to enable Apple Music background tracking",
                                     fontSize = 11.sp,
                                     color = Color.White.copy(alpha = 0.7f)
                                 )
@@ -362,7 +444,7 @@ fun MainMediaDashboard(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Currently Playing Widget
+                // Apple Music Currently Playing Hero Card
                 CurrentlyPlayingWidget(currentPlaying)
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -393,26 +475,84 @@ fun MainMediaDashboard(
     }
 }
 
+// ── Apple Music Animated Equalizer ───────────────────────────────────────────
+@Composable
+fun AppleEqualizerWave(isPlaying: Boolean, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "eqWave")
+
+    val h1 by transition.animateFloat(
+        initialValue = 4f, targetValue = 16f,
+        animationSpec = infiniteRepeatable(tween(850, easing = LinearEasing), RepeatMode.Reverse),
+        label = "h1"
+    )
+    val h2 by transition.animateFloat(
+        initialValue = 14f, targetValue = 4f,
+        animationSpec = infiniteRepeatable(tween(650, easing = LinearEasing), RepeatMode.Reverse),
+        label = "h2"
+    )
+    val h3 by transition.animateFloat(
+        initialValue = 6f, targetValue = 18f,
+        animationSpec = infiniteRepeatable(tween(920, easing = LinearEasing), RepeatMode.Reverse),
+        label = "h3"
+    )
+    val h4 by transition.animateFloat(
+        initialValue = 12f, targetValue = 5f,
+        animationSpec = infiniteRepeatable(tween(720, easing = LinearEasing), RepeatMode.Reverse),
+        label = "h4"
+    )
+
+    Row(
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = modifier.height(18.dp)
+    ) {
+        listOf(h1, h2, h3, h4).forEach { h ->
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(if (isPlaying) h.dp else 4.dp)
+                    .clip(RoundedCornerShape(99.dp))
+                    .background(AppleAccent)
+            )
+        }
+    }
+}
+
+// ── Apple Music "Now Playing" Widget ─────────────────────────────────────────
 @Composable
 fun CurrentlyPlayingWidget(current: CurrentlyPlaying?) {
+    val isPlaying = current?.isPlaying == true
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(AmoledSurface)
-            .border(1.dp, if (current?.isPlaying == true) AmoledAccent.copy(alpha = 0.5f) else AmoledBorder, RoundedCornerShape(14.dp))
-            .padding(14.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF222026).copy(alpha = 0.85f),
+                        Color(0xFF16151A).copy(alpha = 0.95f)
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                if (isPlaying) AppleAccent.copy(alpha = 0.45f) else AppleBorderHighlight,
+                RoundedCornerShape(18.dp)
+            )
+            .padding(16.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Artwork or Placeholder
+            // Album Artwork Sleeve with Apple Squircle and shadow
             Box(
                 modifier = Modifier
-                    .size(46.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (current?.isPlaying == true) AmoledAccent.copy(alpha = 0.2f) else AmoledCard),
+                    .size(54.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isPlaying) AppleAccent.copy(alpha = 0.2f) else AppleCardBg)
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (current?.artworkPath != null && File(current.artworkPath).exists()) {
@@ -422,44 +562,61 @@ fun CurrentlyPlayingWidget(current: CurrentlyPlaying?) {
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
-                } else if (current?.isPlaying == true) {
-                    Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = AmoledAccent, modifier = Modifier.size(24.dp))
+                } else if (isPlaying) {
+                    Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = AppleAccent, modifier = Modifier.size(26.dp))
                 } else {
-                    Icon(Icons.Filled.MusicOff, contentDescription = null, tint = AmoledTextSecondary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Filled.MusicNote, contentDescription = null, tint = AppleTextSecondary, modifier = Modifier.size(24.dp))
                 }
             }
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(if (current?.isPlaying == true) AmoledGreen else AmoledTextSecondary)
-                    )
+                    AppleEqualizerWave(isPlaying = isPlaying)
+
                     Text(
-                        if (current?.isPlaying == true) "NOW PLAYING" else "IDLE",
+                        if (isPlaying) "NOW PLAYING" else "IDLE",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (current?.isPlaying == true) AmoledGreen else AmoledTextSecondary,
-                        letterSpacing = 0.5.sp
+                        color = if (isPlaying) AppleAccent else AppleTextSecondary,
+                        letterSpacing = 0.8.sp
                     )
+
+                    // Lossless badge
+                    if (isPlaying) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(999.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                "LOSSLESS",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppleTextPrimary,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
                 }
 
+                Spacer(modifier = Modifier.height(2.dp))
+
                 Text(
-                    text = current?.title ?: "No active song playing",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = AmoledTextPrimary,
+                    text = current?.title ?: "No track currently playing",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppleTextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
                 val artistAlbumText = buildString {
-                    append(current?.artists?.joinToString(", ") ?: "Apple Music")
+                    append(current?.artists?.joinToString(", ") ?: "Play Apple Music to begin")
                     if (!current?.album.isNullOrBlank()) {
                         append(" • ")
                         append(current!!.album)
@@ -468,25 +625,26 @@ fun CurrentlyPlayingWidget(current: CurrentlyPlaying?) {
                 Text(
                     text = artistAlbumText,
                     fontSize = 12.sp,
-                    color = AmoledTextSecondary,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isPlaying) AppleAccentHover else AppleTextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
-            if (current?.isPlaying == true && current.currentSongSeconds > 0) {
+            if (isPlaying && current.currentSongSeconds > 0) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(AmoledCard)
-                        .border(1.dp, AmoledAccent.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .background(AppleCardBg)
+                        .border(1.dp, AppleAccent.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = formatListenTime(current.currentSongSeconds),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AmoledAccent
+                        color = AppleAccent
                     )
                 }
             }
@@ -516,9 +674,9 @@ fun SyncStatusBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(AmoledSurface)
-            .border(1.dp, AmoledBorder, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(AppleSurface)
+            .border(1.dp, AppleBorderHighlight, RoundedCornerShape(14.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Row(
@@ -535,7 +693,7 @@ fun SyncStatusBar(
                 Icon(
                     imageVector = if (isSyncing) Icons.Filled.Sync else Icons.Filled.CloudDone,
                     contentDescription = null,
-                    tint = if (isSyncing) AmoledAccent else AmoledGreen,
+                    tint = if (isSyncing) AppleAccent else AppleGreen,
                     modifier = Modifier.size(16.dp)
                 )
 
@@ -549,11 +707,11 @@ fun SyncStatusBar(
                                 val timeStr = SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(Date(lastSyncTimestamp))
                                 "Last Synced: $timeStr"
                             } else {
-                                "Sync: Not synced yet"
+                                "Sync: Ready"
                             },
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = AmoledTextPrimary
+                            color = AppleTextPrimary
                         )
 
                         // WS Indicator Dot inside sync bar
@@ -561,14 +719,14 @@ fun SyncStatusBar(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(if (isWebSocketConnected) AmoledGreen else Color(0xFF666666))
+                                .background(if (isWebSocketConnected) AppleGreen else Color(0xFF666666))
                         )
                     }
 
                     Text(
                         text = if (isWebSocketConnected) "$syncStatus • WebSocket Live" else syncStatus,
                         fontSize = 10.sp,
-                        color = AmoledTextSecondary,
+                        color = AppleTextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -578,19 +736,19 @@ fun SyncStatusBar(
             Button(
                 onClick = onManualSync,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AmoledCard,
-                    contentColor = AmoledAccent
+                    containerColor = AppleCardBg,
+                    contentColor = AppleAccent
                 ),
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                 modifier = Modifier
-                    .border(1.dp, AmoledAccent.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                    .border(1.dp, AppleAccent.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                     .height(30.dp)
             ) {
                 Icon(
                     imageVector = Icons.Filled.Sync,
                     contentDescription = "Sync",
-                    tint = AmoledAccent,
+                    tint = AppleAccent,
                     modifier = Modifier.size(13.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
@@ -600,6 +758,7 @@ fun SyncStatusBar(
     }
 }
 
+// ── Apple Music Replay Analytics Overview ────────────────────────────────────
 @Composable
 fun DashboardTabContent(
     totalPlays: Int,
@@ -621,24 +780,34 @@ fun DashboardTabContent(
                 StatCard(
                     modifier = Modifier.weight(1f),
                     title = "Total Plays",
-                    value = "$totalPlays"
+                    value = "$totalPlays",
+                    iconColor = AppleIndigo
                 )
                 StatCard(
                     modifier = Modifier.weight(1f),
                     title = "Songs",
-                    value = "$uniqueTracks"
+                    value = "$uniqueTracks",
+                    iconColor = AppleCyan
                 )
             }
         }
 
+        // Total Listening Time Hero Replay Card
         item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(AmoledSurface)
-                    .border(1.dp, AmoledBorder, RoundedCornerShape(14.dp))
-                    .padding(14.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                AppleAccent.copy(alpha = 0.16f),
+                                AppleCardBg
+                            )
+                        )
+                    )
+                    .border(1.dp, AppleBorderHighlight, RoundedCornerShape(18.dp))
+                    .padding(16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -650,27 +819,34 @@ fun DashboardTabContent(
                             "TOTAL LISTENING TIME",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = AmoledTextSecondary,
-                            letterSpacing = 0.5.sp
+                            color = AppleTextSecondary,
+                            letterSpacing = 0.6.sp
                         )
                         Text(
                             formatListenTime(totalListenSeconds),
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AmoledAccent
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = AppleTextPrimary
+                        )
+                        Text(
+                            "Across Apple Music sessions",
+                            fontSize = 11.sp,
+                            color = AppleTextSecondary
                         )
                     }
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(AmoledAccent.copy(alpha = 0.15f))
-                            .padding(10.dp)
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AppleAccent.copy(alpha = 0.2f))
+                            .border(1.dp, AppleAccent.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Filled.Schedule,
                             contentDescription = null,
-                            tint = AmoledAccent,
-                            modifier = Modifier.size(22.dp)
+                            tint = AppleAccent,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -683,10 +859,10 @@ fun DashboardTabContent(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(AmoledSurface)
-                        .border(1.dp, AmoledBorder, RoundedCornerShape(14.dp))
-                        .padding(14.dp),
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(AppleSurface)
+                        .border(1.dp, AppleBorderHighlight, RoundedCornerShape(18.dp))
+                        .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
@@ -698,13 +874,14 @@ fun DashboardTabContent(
                             "DAILY LISTENING TIME",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = AmoledTextSecondary,
-                            letterSpacing = 0.5.sp
+                            color = AppleTextSecondary,
+                            letterSpacing = 0.6.sp
                         )
                         Text(
                             "${dailyStats.size} days tracked",
                             fontSize = 11.sp,
-                            color = AmoledTextSecondary
+                            fontWeight = FontWeight.Medium,
+                            color = AppleTextSecondary
                         )
                     }
 
@@ -712,9 +889,9 @@ fun DashboardTabContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(AmoledCard)
-                                .border(1.dp, AmoledBorder, RoundedCornerShape(10.dp))
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(AppleCardBg)
+                                .border(1.dp, AppleBorder, RoundedCornerShape(12.dp))
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -724,26 +901,26 @@ fun DashboardTabContent(
                                     text = day.dayLabel,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = AmoledTextPrimary
+                                    color = AppleTextPrimary
                                 )
                                 Text(
                                     text = if (day.playCount > 0) "${day.playCount} plays" else "Active playback",
                                     fontSize = 11.sp,
-                                    color = AmoledTextSecondary
+                                    color = AppleTextSecondary
                                 )
                             }
 
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(AmoledAccent.copy(alpha = 0.15f))
+                                    .background(AppleAccent.copy(alpha = 0.15f))
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Text(
                                     text = formatListenTime(day.totalSeconds),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = AmoledAccent
+                                    color = AppleAccent
                                 )
                             }
                         }
@@ -762,14 +939,14 @@ fun DashboardTabContent(
                     "MOST PLAYED",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AmoledTextSecondary,
-                    letterSpacing = 0.5.sp
+                    color = AppleTextSecondary,
+                    letterSpacing = 0.6.sp
                 )
                 Text(
                     "See All",
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AmoledAccent,
+                    color = AppleAccent,
                     modifier = Modifier.clickable { onViewAllClick() }
                 )
             }
@@ -785,15 +962,15 @@ fun DashboardTabContent(
                 ) {
                     Text(
                         "No songs tracked yet.\nPlay a song on Apple Music to start tracking.",
-                        color = AmoledTextSecondary,
+                        color = AppleTextSecondary,
                         fontSize = 13.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
             }
         } else {
-            items(topTracks) { track ->
-                TrackItemRow(track)
+            items(topTracks.withIndex().toList()) { (idx, track) ->
+                TrackItemRow(track = track, rankIndex = idx + 1)
             }
         }
 
@@ -801,6 +978,7 @@ fun DashboardTabContent(
     }
 }
 
+// ── Apple Music Library Tab ──────────────────────────────────────────────────
 @Composable
 fun LibraryTabContent(
     tracks: List<TrackStat>,
@@ -808,39 +986,40 @@ fun LibraryTabContent(
     onSearchChange: (String) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+        // Apple Music Search Capsule
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            placeholder = { Text("Search title or artist...", color = AmoledTextSecondary, fontSize = 13.sp) },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = AmoledTextSecondary) },
+            placeholder = { Text("Search songs, artists, albums...", color = AppleTextSecondary, fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = AppleTextSecondary) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchChange("") }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Clear", tint = AmoledTextSecondary)
+                        Icon(Icons.Filled.Close, contentDescription = "Clear", tint = AppleTextSecondary)
                     }
                 }
             },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = AmoledSurface,
-                unfocusedContainerColor = AmoledSurface,
-                focusedTextColor = AmoledTextPrimary,
-                unfocusedTextColor = AmoledTextPrimary,
-                focusedBorderColor = AmoledAccent,
-                unfocusedBorderColor = AmoledBorder
+                focusedContainerColor = AppleSurface,
+                unfocusedContainerColor = AppleSurface,
+                focusedTextColor = AppleTextPrimary,
+                unfocusedTextColor = AppleTextPrimary,
+                focusedBorderColor = AppleAccent,
+                unfocusedBorderColor = AppleBorder
             ),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(999.dp)
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("ALL SONGS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AmoledTextSecondary, letterSpacing = 0.5.sp)
-            Text("${tracks.size} songs", fontSize = 10.sp, color = AmoledTextSecondary)
+            Text("ALL SONGS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AppleTextSecondary, letterSpacing = 0.6.sp)
+            Text("${tracks.size} songs", fontSize = 10.sp, color = AppleTextSecondary)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -852,20 +1031,21 @@ fun LibraryTabContent(
             if (tracks.isEmpty()) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                        Text("No matching songs found", color = AmoledTextSecondary, fontSize = 13.sp)
+                        Text("No matching songs found", color = AppleTextSecondary, fontSize = 13.sp)
                     }
                 }
             } else {
-                items(tracks) { track ->
-                    TrackItemRow(track)
+                items(tracks.withIndex().toList()) { (idx, track) ->
+                    TrackItemRow(track = track, rankIndex = idx + 1)
                 }
             }
         }
     }
 }
 
+// ── Apple Music Track Item Row ───────────────────────────────────────────────
 @Composable
-fun TrackItemRow(track: TrackStat) {
+fun TrackItemRow(track: TrackStat, rankIndex: Int? = null) {
     val dateStr = remember(track.lastPlayed) {
         val sdf = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
         sdf.format(Date(track.lastPlayed))
@@ -874,22 +1054,34 @@ fun TrackItemRow(track: TrackStat) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(AmoledSurface)
-            .border(1.dp, AmoledBorder, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(AppleSurface)
+            .border(1.dp, AppleBorder, RoundedCornerShape(14.dp))
             .padding(10.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Artwork Thumbnail
+            // Optional rank number (Apple Top Charts)
+            if (rankIndex != null) {
+                Text(
+                    text = if (rankIndex < 10) "0$rankIndex" else "$rankIndex",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppleTextTertiary,
+                    modifier = Modifier.width(22.dp)
+                )
+            }
+
+            // High resolution album artwork thumbnail with Apple Squircle
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(AmoledCard),
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(AppleCardBg)
+                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (track.artworkPath != null && File(track.artworkPath).exists()) {
@@ -900,7 +1092,7 @@ fun TrackItemRow(track: TrackStat) {
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    Icon(Icons.Filled.MusicNote, contentDescription = null, tint = AmoledTextSecondary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Filled.MusicNote, contentDescription = null, tint = AppleTextSecondary, modifier = Modifier.size(20.dp))
                 }
             }
 
@@ -908,8 +1100,8 @@ fun TrackItemRow(track: TrackStat) {
                 Text(
                     text = track.title,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = AmoledTextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    color = AppleTextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -921,7 +1113,8 @@ fun TrackItemRow(track: TrackStat) {
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
-                    color = AmoledTextSecondary,
+                    fontWeight = FontWeight.Medium,
+                    color = AppleAccentHover,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -932,15 +1125,15 @@ fun TrackItemRow(track: TrackStat) {
                     Text(
                         text = "Last: $dateStr",
                         fontSize = 10.sp,
-                        color = Color(0xFF6E6E73)
+                        color = AppleTextTertiary
                     )
                     if (track.totalSeconds > 0) {
-                        Text("•", fontSize = 10.sp, color = Color(0xFF48484A))
+                        Text("•", fontSize = 10.sp, color = AppleTextTertiary)
                         Text(
                             text = formatListenTime(track.totalSeconds),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
-                            color = AmoledAccent.copy(alpha = 0.85f)
+                            color = AppleGreen
                         )
                     }
                 }
@@ -952,16 +1145,16 @@ fun TrackItemRow(track: TrackStat) {
             ) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AmoledCard)
-                        .border(1.dp, AmoledAccent.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(AppleAccent.copy(alpha = 0.15f))
+                        .border(1.dp, AppleAccent.copy(alpha = 0.35f), RoundedCornerShape(999.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = "${track.playCount}x",
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AmoledAccent
+                        color = AppleAccent
                     )
                 }
 
@@ -969,7 +1162,7 @@ fun TrackItemRow(track: TrackStat) {
                     Text(
                         text = formatListenTime(track.totalSeconds),
                         fontSize = 10.sp,
-                        color = AmoledTextSecondary,
+                        color = AppleTextSecondary,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -978,22 +1171,50 @@ fun TrackItemRow(track: TrackStat) {
     }
 }
 
+// ── Apple Music Stat Card ────────────────────────────────────────────────────
 @Composable
-fun StatCard(modifier: Modifier = Modifier, title: String, value: String) {
+fun StatCard(modifier: Modifier = Modifier, title: String, value: String, iconColor: Color = AppleIndigo) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(AmoledSurface)
-            .border(1.dp, AmoledBorder, RoundedCornerShape(14.dp))
-            .padding(14.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(AppleSurface)
+            .border(1.dp, AppleBorderHighlight, RoundedCornerShape(18.dp))
+            .padding(16.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmoledTextSecondary, letterSpacing = 0.5.sp)
-            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = AmoledTextPrimary)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    title.uppercase(),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppleTextSecondary,
+                    letterSpacing = 0.6.sp
+                )
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(iconColor.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.BarChart,
+                        contentDescription = null,
+                        tint = iconColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+            Text(value, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = AppleTextPrimary)
         }
     }
 }
 
+// ── Apple Music About Tab ────────────────────────────────────────────────────
 @Composable
 fun AboutTabContent(
     totalPlays: Int,
@@ -1009,10 +1230,10 @@ fun AboutTabContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(AmoledSurface)
-                    .border(1.dp, AmoledBorder, RoundedCornerShape(14.dp))
-                    .padding(16.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(AppleSurface)
+                    .border(1.dp, AppleBorderHighlight, RoundedCornerShape(18.dp))
+                    .padding(18.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -1020,15 +1241,21 @@ fun AboutTabContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("QUAZAAR", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmoledTextSecondary, letterSpacing = 0.5.sp)
-                        Text("v0.0.1", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmoledAccent)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("", fontSize = 14.sp, color = AppleAccent)
+                            Text("SYNKER", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppleTextPrimary, letterSpacing = 0.6.sp)
+                        }
+                        Text("v0.0.1", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AppleAccent)
                     }
 
                     Text(
-                        "Quazaar tracks your Apple Music listening habits directly on your phone. It runs silently in the background, keeping track of how many times you play your favourite songs, artists, and album covers.",
+                        "Synker tracks your Apple Music listening habits directly on your phone. It runs silently in the background, keeping track of how many times you play your favourite songs, artists, and album covers.",
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
-                        color = AmoledTextPrimary.copy(alpha = 0.85f)
+                        color = AppleTextPrimary.copy(alpha = 0.85f)
                     )
                 }
             }
@@ -1038,19 +1265,19 @@ fun AboutTabContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(AmoledSurface)
-                    .border(1.dp, AmoledBorder, RoundedCornerShape(14.dp))
-                    .padding(16.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(AppleSurface)
+                    .border(1.dp, AppleBorderHighlight, RoundedCornerShape(18.dp))
+                    .padding(18.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("OVERVIEW", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmoledTextSecondary, letterSpacing = 0.5.sp)
+                    Text("OVERVIEW", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AppleTextSecondary, letterSpacing = 0.6.sp)
 
                     AboutRow(label = "Music Service", value = "Apple Music")
                     AboutRow(label = "Total Tracks", value = "$uniqueTracks songs")
                     AboutRow(label = "Total Plays", value = "$totalPlays plays")
                     AboutRow(label = "Total Time", value = formatListenTime(totalListenSeconds))
-                    AboutRow(label = "Interface", value = "AMOLED Black")
+                    AboutRow(label = "Interface Theme", value = "Apple Music Dark")
                 }
             }
         }
@@ -1059,18 +1286,18 @@ fun AboutTabContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(AmoledSurface)
-                    .border(1.dp, AmoledBorder, RoundedCornerShape(14.dp))
-                    .padding(16.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(AppleSurface)
+                    .border(1.dp, AppleBorderHighlight, RoundedCornerShape(18.dp))
+                    .padding(18.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("DATA", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmoledTextSecondary, letterSpacing = 0.5.sp)
+                    Text("DATA", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AppleTextSecondary, letterSpacing = 0.6.sp)
                     Text(
                         "Wipe all tracked song statistics, play history logs, artwork files, and reset counters.",
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
-                        color = AmoledTextSecondary
+                        color = AppleTextSecondary
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -1079,10 +1306,10 @@ fun AboutTabContent(
                         onClick = onClearClick,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = AmoledAccent
+                            contentColor = AppleAccent
                         ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, AmoledAccent.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(10.dp)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AppleAccent.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Outlined.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -1100,7 +1327,7 @@ fun AboutRow(label: String, value: String) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = AmoledTextSecondary, fontSize = 12.sp)
-        Text(value, color = AmoledTextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(label, color = AppleTextSecondary, fontSize = 12.sp)
+        Text(value, color = AppleTextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }

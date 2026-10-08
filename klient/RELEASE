@@ -1,0 +1,15 @@
+# Synker Android Client Release & Version Metadata
+# Format: KEY=VALUE (Standard POSIX / Java properties compatible)
+
+VERSION=0.0.2
+CHANNEL=beta
+VERSION_CODE=2
+RELEASE_NAME="Liquid Music"
+CODENAME=liquid
+APPLICATION_ID="com.quazaar.synker.klient"
+MIN_SDK=26
+TARGET_SDK=35
+COMPILE_SDK=35
+DESCRIPTION="Synker Android Client - Apple Music styled companion player for Synker Daemon"
+AUTHOR="CodersHub"
+HOMEPAGE="https://github.com/codershubinc/synker"

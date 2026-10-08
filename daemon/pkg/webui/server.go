@@ -64,8 +64,8 @@ type WebServer struct {
 	liveState     LiveMediaState
 	devicesState  map[string]LiveMediaState // Per-device live states
 	artworkMu     sync.RWMutex
-	artworkSongID string                    // SongID that matches artworkData
-	artworkData   []byte                    // raw JPEG bytes for current track artwork (from mobile client)
+	artworkSongID string // SongID that matches artworkData
+	artworkData   []byte // raw JPEG bytes for current track artwork (from mobile client)
 	wsClientsMu   sync.Mutex
 	wsClients     map[chan []byte]bool
 }
@@ -785,7 +785,7 @@ func generateCurrentPlayingSVG(state LiveMediaState, artURL string) string {
 		source = state.Source
 	}
 	if source == "" {
-		source = "Quazaar Synker"
+		source = "Synker"
 	}
 
 	statusColor := "#10b981"
