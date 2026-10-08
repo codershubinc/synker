@@ -138,9 +138,6 @@ fetch_binary_from_release() {
     if [ "${FORCE_RELEASE}" = false ] && [ "${has_local_source}" = true ]; then
         echo -e "${BLUE}[*] Local repository detected. Compiling synkerd from local source...${NC}"
         local cmd_pkg="./cmd/synkerd"
-        if [ ! -d "${script_dir}/daemon/cmd/synkerd" ] && [ ! -L "${script_dir}/daemon/cmd/synkerd" ]; then
-            cmd_pkg="./cmd/quazaard"
-        fi
         if (cd "${script_dir}/daemon" && go build -trimpath -ldflags="-s -w" -o "${tmp_bin}" "${cmd_pkg}"); then
             download_success=true
             echo -e "${GREEN}[✓] Built synkerd successfully from local source.${NC}"
@@ -174,13 +171,9 @@ fetch_binary_from_release() {
         local direct_urls=(
             "https://github.com/${GITHUB_REPO}/releases/download/${TARGET_TAG}/synkerd-linux-${ARCH}"
             "https://github.com/${GITHUB_REPO}/releases/download/${TARGET_TAG}/synkerd"
-            "https://github.com/${GITHUB_REPO}/releases/download/${TARGET_TAG}/quazaard-linux-${ARCH}"
-            "https://github.com/${GITHUB_REPO}/releases/download/${TARGET_TAG}/quazaard"
             "https://github.com/${GITHUB_REPO}/releases/download/${TARGET_TAG}/daemon-linux-${ARCH}"
             "https://github.com/${GITHUB_REPO}/releases/latest/download/synkerd-linux-${ARCH}"
             "https://github.com/${GITHUB_REPO}/releases/latest/download/synkerd"
-            "https://github.com/${GITHUB_REPO}/releases/latest/download/quazaard-linux-${ARCH}"
-            "https://github.com/${GITHUB_REPO}/releases/latest/download/quazaard"
         )
 
         for url in "${direct_urls[@]}"; do
@@ -198,9 +191,6 @@ fetch_binary_from_release() {
     if [ "${download_success}" = false ] && [ "${has_local_source}" = true ]; then
         echo -e "${BLUE}[*] Compiling synkerd from local source using Go...${NC}"
         local cmd_pkg="./cmd/synkerd"
-        if [ ! -d "${script_dir}/daemon/cmd/synkerd" ] && [ ! -L "${script_dir}/daemon/cmd/synkerd" ]; then
-            cmd_pkg="./cmd/quazaard"
-        fi
         (cd "${script_dir}/daemon" && go build -trimpath -ldflags="-s -w" -o "${tmp_bin}" "${cmd_pkg}")
         download_success=true
     fi
@@ -215,8 +205,6 @@ fetch_binary_from_release() {
     mv "${tmp_bin}" "${TARGET_BIN}"
     chmod +x "${TARGET_BIN}"
 
-    # Also symlink legacy quazaard -> synkerd for full backward compatibility
-    ln -sf "synkerd" "${LEGACY_BIN}"
 
     echo -e "${GREEN}[✓] Synker daemon binary installed to: ${TARGET_BIN}${NC}"
 }
