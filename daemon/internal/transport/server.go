@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quazaar/synker/daemon/pkg/pairing"
-	"github.com/quazaar/synker/daemon/pkg/protocol"
+	"github.com/quazaar/synker/daemon/internal/pairing"
+	"github.com/quazaar/synker/daemon/internal/protocol"
 )
 
 type PeerConnection struct {

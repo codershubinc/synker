@@ -17,23 +17,23 @@ const (
 )
 
 type PeerInfo struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	IP        net.IP    `json:"ip"`
-	Port      int       `json:"port"`
-	LastSeen  time.Time `json:"last_seen"`
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	IP       net.IP    `json:"ip"`
+	Port     int       `json:"port"`
+	LastSeen time.Time `json:"last_seen"`
 }
 
 type DiscoveryService struct {
-	deviceID     string
-	deviceName   string
-	port         int
-	server       *zeroconf.Server
-	peers        map[string]PeerInfo
-	peerCh       chan PeerInfo
-	mu           sync.RWMutex
-	ctx          context.Context
-	cancel       context.CancelFunc
+	deviceID   string
+	deviceName string
+	port       int
+	server     *zeroconf.Server
+	peers      map[string]PeerInfo
+	peerCh     chan PeerInfo
+	mu         sync.RWMutex
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 func NewDiscoveryService(deviceID, deviceName string, port int) *DiscoveryService {

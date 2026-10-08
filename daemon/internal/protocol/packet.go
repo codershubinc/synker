@@ -34,19 +34,19 @@ func NewPacket(id, pType, senderID string, payload interface{}) Packet {
 
 // MediaStatePayload models current playback telemetry
 type MediaStatePayload struct {
-	PlayerName   string   `json:"player_name"`
-	PlaybackStatus string `json:"playback_status"` // "Playing", "Paused", "Stopped"
-	Title        string   `json:"title"`
-	Artist       string   `json:"artist"`
-	Album        string   `json:"album"`
-	ArtURL       string   `json:"art_url,omitempty"`
-	PositionMS   int64    `json:"position_ms"`
-	DurationMS   int64    `json:"duration_ms"`
-	Volume       float64  `json:"volume"`
-	CanPlay      bool     `json:"can_play"`
-	CanPause     bool     `json:"can_pause"`
-	CanGoNext    bool     `json:"can_go_next"`
-	CanGoPrev    bool     `json:"can_go_previous"`
+	PlayerName     string  `json:"player_name"`
+	PlaybackStatus string  `json:"playback_status"` // "Playing", "Paused", "Stopped"
+	Title          string  `json:"title"`
+	Artist         string  `json:"artist"`
+	Album          string  `json:"album"`
+	ArtURL         string  `json:"art_url,omitempty"`
+	PositionMS     int64   `json:"position_ms"`
+	DurationMS     int64   `json:"duration_ms"`
+	Volume         float64 `json:"volume"`
+	CanPlay        bool    `json:"can_play"`
+	CanPause       bool    `json:"can_pause"`
+	CanGoNext      bool    `json:"can_go_next"`
+	CanGoPrev      bool    `json:"can_go_previous"`
 }
 
 // MediaCommandPayload models remote playback action instructions
