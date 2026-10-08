@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quazaar Synker API Documentation</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 2rem; }
+        h1, h2, h3 { color: #2c3e50; }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h2 { margin-top: 2rem; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        pre { background-color: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; border: 1px solid #e9ecef; }
+        code { font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace; font-size: 14px; }
+        .endpoint { font-weight: bold; color: #0366d6; background: #f1f8ff; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-bottom: 10px; font-family: monospace; }
+        .auth-badge { background-color: #ffdce0; color: #cb2431; padding: 2px 6px; border-radius: 10px; font-size: 12px; font-weight: bold; vertical-align: top; margin-left: 10px; }
+    </style>
+</head>
+<body>
+
+<h1>Quazaar Synker API Documentation</h1>
+<p>This document outlines the core REST API endpoints exposed by the <code>synkerd</code> server.</p>
+
+<h2>Authentication</h2>
+<p>Several endpoints require an authentication token, which is passed in the headers.</p>
+<pre><code>Authorization: Bearer &lt;auth_token&gt;</code></pre>
+<p><em>(Alternatively, you can use <code>X-Sync-Token: &lt;auth_token&gt;</code>)</em></p>
+
+<h2>1. Authentication Endpoints</h2>
+<div class="endpoint">POST /api/v1/login</div>
+<p>Exchanges the server admin password for an authentication token.</p>
+<strong>Request Body (JSON):</strong>
+<pre><code>{
+  "password": "admin123"
+}</code></pre>
+<strong>Response (200 OK):</strong>
+<pre><code>{
+  "status": "success",
+  "auth_token": "a1b2c3d4e5f60718293a4b5c6d7e8f9a"
+}</code></pre>
+
+<h2>2. Sync Endpoints</h2>
+<div class="endpoint">POST /api/v1/sync <span class="auth-badge">Requires Auth</span></div>
+<p>Uploads new listening history from a client to the server. The server strictly validates this data and adds +1 to plays only if the play instance is truly new.</p>
+<strong>Headers:</strong>
+<pre><code>Authorization: Bearer &lt;auth_token&gt;</code></pre>
+<strong>Request Body (JSON):</strong>
+<pre><code>{
+  "device_id": "66ea79e8b0ae68c9",
+  "device_name": "OnePlus CPH2619",
+  "total_seconds": 103246, 
+  "total_plays": 460, 
+  "tracks": [
+    {
+      "song_id": "f5053ef4c86fad5a",
+      "title": "Galawar Khali",
+      "artists": ["Unknown Artist"],
+      "album": "Unknown Album",
+      "play_count": 14,
+      "total_seconds": 350,
+      "last_played": 1791487060220,
+      "artwork_data": "base64_encoded_jpeg_string..."
+    }
+  ],
+  "plays": [
+    {
+      "song_id": "f5053ef4c86fad5a",
+      "title": "Galawar Khali",
+      "artists": ["Unknown Artist"],
+      "album": "Unknown Album",
+      "timestamp": 1791487060220,
+      "duration_ms": 250000
+    }
+  ],
+  "daily_stats": [
+    {
+      "date": "2026-10-09",
+      "total_seconds": 1080,
+      "play_count": 7
+    }
+  ]
+}</code></pre>
+<strong>Response (200 OK):</strong>
+<pre><code>{
+  "status": "success",
+  "synced_tracks": 1,
+  "synced_plays": 1
+}</code></pre>
+
+<div class="endpoint">GET /api/v1/sync/pull <span class="auth-badge">Requires Auth</span></div>
+<p>Pulls the complete aggregated listening history from the server to restore a client database.</p>
+<strong>Query Parameters:</strong>
+<ul><li><code>device_id</code>: The ID of the device requesting data.</li></ul>
+<strong>Response (200 OK):</strong>
+<pre><code>{
+  "device_id": "66ea79e8b0ae68c9",
+  "device_name": "OnePlus CPH2619",
+  "total_seconds": 103246,
+  "total_plays": 460,
+  "tracks": [...],
+  "plays": [...]
+}</code></pre>
+
+<h2>3. Data &amp; Dashboard Endpoints</h2>
+<div class="endpoint">GET /api/v1/state</div>
+<p>Returns the complete structured music database, including all devices, aggregated history, and tracks.</p>
+<strong>Response (200 OK):</strong>
+<pre><code>{
+  "version": "1.0",
+  "storage_type": "sqlite",
+  "last_updated": "2026-10-09T01:10:05.135Z",
+  "total_plays": 620,
+  "total_seconds": 11520,
+  "devices": [
+    {
+      "id": "66ea79e8b0ae68c9",
+      "name": "OnePlus CPH2619",
+      "last_sync": "2026-10-09T01:10:05.135Z",
+      "total_seconds": 10260,
+      "total_plays": 317,
+      "unique_tracks": 112
+    }
+  ],
+  "tracks": {...},
+  "recent_plays": [...]
+}</code></pre>
+</body>
+</html>

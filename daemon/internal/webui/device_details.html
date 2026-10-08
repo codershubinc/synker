@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Device Details - Quazaar Synker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #000; color: #fff; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .card { background: #1c1c1e; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        h1, h2 { margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #333; }
+        th { color: #888; font-weight: 500; }
+        .badge { background: #34c759; color: #000; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 12px; }
+        a { color: #0a84ff; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/">&larr; Back to Dashboard</a>
+        <h1 id="deviceName" style="margin-top:20px;">Device Details</h1>
+        <p style="color:#888" id="deviceId"></p>
+        
+        <div class="card" id="statsCard" style="display: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+            <div>
+                <div style="color:#888; font-size: 14px;">Total Plays</div>
+                <div id="statPlays" style="font-size: 24px; font-weight: bold;">0</div>
+            </div>
+            <div>
+                <div style="color:#888; font-size: 14px;">Total Listen Time</div>
+                <div id="statTime" style="font-size: 24px; font-weight: bold;">0h 0m</div>
+            </div>
+            <div>
+                <div style="color:#888; font-size: 14px;">Unique Tracks</div>
+                <div id="statTracks" style="font-size: 24px; font-weight: bold;">0</div>
+            </div>
+            <div>
+                <div style="color:#888; font-size: 14px;">Last Synced</div>
+                <div id="statSync" style="font-size: 14px; margin-top: 8px;">Never</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Listening History on this Device</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Song</th>
+                        <th>Plays</th>
+                        <th>Listen Time</th>
+                        <th>Last Played</th>
+                    </tr>
+                </thead>
+                <tbody id="songsTable">
+                    <tr><td colspan="4">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const deviceId = params.get('device_id');
+        
+        if (!deviceId) {
+            document.getElementById('deviceName').textContent = "No Device ID provided";
+        } else {
+            document.getElementById('deviceId').textContent = deviceId;
+            
+            Promise.all([
+                fetch('/api/v1/state').then(r => r.json()),
+                fetch('/api/v1/songs_play_history').then(r => r.json())
+            ]).then(([stateData, playHistory]) => {
+                const dev = stateData.music_history?.devices?.find(d => d.device_id === deviceId);
+                if (dev) {
+                    document.getElementById('deviceName').textContent = dev.device_name;
+                    document.getElementById('statsCard').style.display = 'grid';
+                    document.getElementById('statPlays').textContent = dev.total_plays || 0;
+                    
+                    const totalSec = dev.total_seconds || 0;
+                    const hrs = Math.floor(totalSec / 3600);
+                    const mins = Math.floor((totalSec % 3600) / 60);
+                    document.getElementById('statTime').textContent = `${hrs}h ${mins}m`;
+                    
+                    document.getElementById('statTracks').textContent = dev.unique_tracks || 0;
+                    document.getElementById('statSync').textContent = dev.last_sync ? new Date(dev.last_sync).toLocaleString() : 'Never';
+                }
+                
+                const tbody = document.getElementById('songsTable');
+                let html = '';
+                
+                const devicePlays = (playHistory || []).filter(p => p.device_id === deviceId);
+                
+                devicePlays.forEach(track => {
+                    const title = track._song_info ? track._song_info.title : track.song_id;
+                    const artist = track._song_info ? track._song_info.artist : '';
+                    const playCount = track.play_count || 0;
+                    const listenTime = track.total_listen_duration_sec || 0;
+                    const min = Math.floor(listenTime / 60);
+                    const sec = listenTime % 60;
+                    const timeStr = min > 0 ? `${min}m ${sec}s` : `${sec}s`;
+                    
+                    if (playCount > 0) {
+                        html += `
+                            <tr>
+                                <td>
+                                    <strong>${title}</strong><br>
+                                    <span style="color:#888;font-size:12px">${artist}</span>
+                                </td>
+                                <td><span class="badge">${playCount} plays</span></td>
+                                <td>${timeStr}</td>
+                                <td style="color:#888;font-size:14px">${new Date(track.last_played_at).toLocaleString()}</td>
+                            </tr>
+                        `;
+                    }
+                });
+                
+                if (html === '') {
+                    tbody.innerHTML = '<tr><td colspan="4">No tracks played on this device.</td></tr>';
+                } else {
+                    tbody.innerHTML = html;
+                }
+            }).catch(err => {
+                console.error(err);
+                document.getElementById('songsTable').innerHTML = '<tr><td colspan="4">Error loading data.</td></tr>';
+            });
+        }
+    </script>
+</body>
+</html>
