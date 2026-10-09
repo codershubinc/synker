@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quazaar Synker - Apple Music & MPRIS Sync Bridge</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --am-red: #fa243c;
+            --am-red-hover: #ff3b52;
+            --bg-base: #000000;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1a6;
+            --surface: #1c1c1e;
+        }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        .hero-title {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #fff, #a1a1a6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero-subtitle {
+            font-size: 20px;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 32px;
+        }
+        .btn-primary {
+            background-color: var(--am-red);
+            color: #fff;
+            padding: 14px 28px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            transition: background 0.2s;
+            display: inline-block;
+        }
+        .btn-primary:hover {
+            background-color: var(--am-red-hover);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 60px;
+        }
+        .card {
+            background-color: var(--surface);
+            padding: 32px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255,255,255,0.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .card h3 {
+            font-size: 22px;
+            margin-top: 0;
+            margin-bottom: 12px;
+        }
+        .card p {
+            color: var(--text-secondary);
+            margin: 0;
+            font-size: 15px;
+        }
+        .icon {
+            font-size: 32px;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+        .architecture {
+            background: linear-gradient(180deg, #1c1c1e 0%, #000 100%);
+            padding: 40px;
+            border-radius: 24px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .architecture h2 {
+            font-size: 32px;
+            margin-bottom: 24px;
+        }
+        .architecture p {
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        footer {
+            text-align: center;
+            margin-top: 80px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 30px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1 class="hero-title">Quazaar Synker</h1>
+        <p class="hero-subtitle">The ultimate bridge between your Android device, Apple Music, and your Linux desktop environment.</p>
+        <a href="https://github.com/codershubinc/synker" class="btn-primary">View on GitHub</a>
+    </header>
+
+    <div class="grid">
+        <div class="card">
+            <div class="icon">📱</div>
+            <h3>Android Client App</h3>
+            <p>A beautifully designed background service that hooks into your Android notification listener to securely extract live playback data from Apple Music, Spotify, and more.</p>
+        </div>
+        <div class="card">
+            <div class="icon">⚡</div>
+            <h3>Go Daemon</h3>
+            <p>A lightning-fast Linux daemon that receives encrypted websocket payloads from your phone, stores the playback history in a local SQLite database, and exposes REST APIs.</p>
+        </div>
+        <div class="card">
+            <div class="icon">📊</div>
+            <h3>Live Command Center</h3>
+            <p>An embedded web UI showcasing your real-time listening activity, complete with album artwork extraction, day-by-day play history, and Apple Music Replay analytics.</p>
+        </div>
+        <div class="card">
+            <div class="icon">🔌</div>
+            <h3>MPRIS Integration</h3>
+            <p>Acts as a virtual media player on your Linux desktop. Pause, skip, or view what's playing on your phone directly from your desktop panel via D-Bus MPRIS specifications.</p>
+        </div>
+    </div>
+
+    <div class="architecture">
+        <h2>How It Works</h2>
+        <p>Your Android device runs the Synker Client, intercepting media notifications and securely sending P2P UDP broadcasts and WebSocket events to the Synker Daemon running on your Linux host. The Daemon logs the data to SQLite, exposes a WebUI, and proxies the controls via MPRIS.</p>
+    </div>
+
+    <footer>
+        &copy; 2026 Codershubinc. Built with Go, Kotlin & Jetpack Compose.
+    </footer>
+</div>
+
+</body>
+</html>
