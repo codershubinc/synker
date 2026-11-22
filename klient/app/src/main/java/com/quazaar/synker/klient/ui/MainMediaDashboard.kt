@@ -26,7 +26,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.quazaar.synker.klient.BuildConfig
 import com.quazaar.synker.klient.data.CurrentlyPlaying
+import com.quazaar.synker.klient.update.UpdateManager
 import com.quazaar.synker.klient.data.DayStat
 import com.quazaar.synker.klient.data.TrackStat
 import java.io.File
@@ -82,10 +84,21 @@ fun MainMediaDashboard(
     isWebSocketConnected: Boolean = false,
     onManualSync: () -> Unit = {},
     onRetryWebSocket: () -> Unit,
-    onOpenSettings: () -> Unit = {}
+    onOpenSettings: () -> Unit = {},
+    globalTotalListenSeconds: Long? = null,
+    globalTotalPlays: Int? = null,
+    globalDeviceCount: Int? = null,
+    initialTab: AppTab? = null
 ) {
-    var selectedTab by remember { mutableStateOf(AppTab.DASHBOARD) }
+    var selectedTab by remember { mutableStateOf(initialTab ?: AppTab.DASHBOARD) }
     var showClearWarningDialog by remember { mutableStateOf(false) }
+    val updateInfo by UpdateManager.latestUpdateInfo.collectAsState()
+
+    LaunchedEffect(initialTab) {
+        if (initialTab != null) {
+            selectedTab = initialTab
+        }
+    }
 
     Scaffold(
         containerColor = AppleBlack,
@@ -141,10 +154,21 @@ fun MainMediaDashboard(
                     selected = selectedTab == AppTab.ABOUT,
                     onClick = { selectedTab = AppTab.ABOUT },
                     icon = {
-                        Icon(
-                            if (selectedTab == AppTab.ABOUT) Icons.Filled.Info else Icons.Outlined.Info,
-                            contentDescription = "About"
-                        )
+                        BadgedBox(
+                            badge = {
+                                if (updateInfo?.hasUpdate == true) {
+                                    Badge(
+                                        containerColor = AppleAccent,
+                                        modifier = Modifier.size(7.dp)
+                                    )
+                                }
+                            }
+                        ) {
+                            Icon(
+                                if (selectedTab == AppTab.ABOUT) Icons.Filled.Info else Icons.Outlined.Info,
+                                contentDescription = "About"
+                            )
+                        }
                     },
                     label = { Text("About", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                     colors = NavigationBarItemDefaults.colors(
@@ -457,7 +481,10 @@ fun MainMediaDashboard(
                         totalListenSeconds = totalListenSeconds,
                         dailyStats = dailyStats,
                         topTracks = allTracks.take(15),
-                        onViewAllClick = { selectedTab = AppTab.LIBRARY }
+                        onViewAllClick = { selectedTab = AppTab.LIBRARY },
+                        globalTotalListenSeconds = globalTotalListenSeconds,
+                        globalTotalPlays = globalTotalPlays,
+                        globalDeviceCount = globalDeviceCount
                     )
                     AppTab.LIBRARY -> LibraryTabContent(
                         tracks = allTracks,
@@ -767,7 +794,10 @@ fun DashboardTabContent(
     totalListenSeconds: Long,
     dailyStats: List<DayStat>,
     topTracks: List<TrackStat>,
-    onViewAllClick: () -> Unit
+    onViewAllClick: () -> Unit,
+    globalTotalListenSeconds: Long? = null,
+    globalTotalPlays: Int? = null,
+    globalDeviceCount: Int? = null
 ) {
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -781,7 +811,7 @@ fun DashboardTabContent(
                 StatCard(
                     modifier = Modifier.weight(1f),
                     title = "Total Plays",
-                    value = "$totalPlays",
+                    value = if (globalTotalPlays != null && globalTotalPlays > 0) "$globalTotalPlays" else "$totalPlays",
                     iconColor = AppleIndigo
                 )
                 StatCard(
@@ -793,7 +823,87 @@ fun DashboardTabContent(
             }
         }
 
-        // Total Listening Time Hero Replay Card
+        // ── HERO TILE: TOTAL LISTENING TIME (ALL DEVICES) ─────────────────────
+        item {
+            val globalSeconds = globalTotalListenSeconds ?: totalListenSeconds
+            val deviceSubtitle = when {
+                (globalDeviceCount ?: 0) > 1 -> "Across ${globalDeviceCount} synced devices via daemon"
+                globalTotalListenSeconds != null -> "Across all devices via daemon"
+                else -> "Synced across devices via daemon"
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                AppleCyan.copy(alpha = 0.22f),
+                                AppleIndigo.copy(alpha = 0.14f),
+                                AppleCardBg
+                            )
+                        )
+                    )
+                    .border(1.dp, AppleBorderHighlight, RoundedCornerShape(18.dp))
+                    .padding(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(AppleCyan)
+                            )
+                            Text(
+                                "TOTAL LISTENING TIME (ALL DEVICES)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppleCyan,
+                                letterSpacing = 0.6.sp
+                            )
+                        }
+                        Text(
+                            formatListenTime(globalSeconds),
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = AppleTextPrimary
+                        )
+                        Text(
+                            deviceSubtitle,
+                            fontSize = 11.sp,
+                            color = AppleTextSecondary
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(AppleCyan.copy(alpha = 0.18f))
+                            .border(1.dp, AppleCyan.copy(alpha = 0.4f), RoundedCornerShape(14.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Devices,
+                            contentDescription = "All Devices",
+                            tint = AppleCyan,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── THIS DEVICE LISTENING TIME TILE ──────────────────────────────────
         item {
             Box(
                 modifier = Modifier
@@ -816,28 +926,39 @@ fun DashboardTabContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            "TOTAL LISTENING TIME",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AppleTextSecondary,
-                            letterSpacing = 0.6.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(AppleAccent)
+                            )
+                            Text(
+                                "THIS DEVICE LISTENING TIME",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppleAccent,
+                                letterSpacing = 0.6.sp
+                            )
+                        }
                         Text(
                             formatListenTime(totalListenSeconds),
-                            fontSize = 24.sp,
+                            fontSize = 22.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = AppleTextPrimary
                         )
                         Text(
-                            "Across Apple Music sessions",
+                            "Local sessions on this device",
                             fontSize = 11.sp,
                             color = AppleTextSecondary
                         )
                     }
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(42.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(AppleAccent.copy(alpha = 0.2f))
                             .border(1.dp, AppleAccent.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
@@ -847,7 +968,7 @@ fun DashboardTabContent(
                             Icons.Filled.Schedule,
                             contentDescription = null,
                             tint = AppleAccent,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
@@ -1249,7 +1370,7 @@ fun AboutTabContent(
                             Text("", fontSize = 14.sp, color = AppleAccent)
                             Text("SYNKER", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppleTextPrimary, letterSpacing = 0.6.sp)
                         }
-                        Text("v0.0.1", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AppleAccent)
+                        Text("v${BuildConfig.VERSION_NAME.ifEmpty { "0.0.2" }}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AppleAccent)
                     }
 
                     Text(
@@ -1275,12 +1396,18 @@ fun AboutTabContent(
                     Text("OVERVIEW", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AppleTextSecondary, letterSpacing = 0.6.sp)
 
                     AboutRow(label = "Music Service", value = "Apple Music")
+                    AboutRow(label = "Version", value = "v${BuildConfig.VERSION_NAME.ifEmpty { "0.0.2" }}")
+                    AboutRow(label = "GitHub Repository", value = "codershubinc/synker")
                     AboutRow(label = "Total Tracks", value = "$uniqueTracks songs")
                     AboutRow(label = "Total Plays", value = "$totalPlays plays")
                     AboutRow(label = "Total Time", value = formatListenTime(totalListenSeconds))
                     AboutRow(label = "Interface Theme", value = "Apple Music Dark")
                 }
             }
+        }
+
+        item {
+            AppUpdateSection()
         }
 
         item {

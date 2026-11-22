@@ -182,12 +182,29 @@ class QuazaarBackgroundDaemon : Service() {
                             }
                         }
 
+                        // Extract real track duration & current playback position from MediaSession
+                        val trackDurationMs = try {
+                            metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
+                        } catch (_: Exception) { 0L }
+                        val trackDurationSec = if (trackDurationMs > 0L) trackDurationMs / 1000L else 0L
+
+                        val playbackPositionMs = try {
+                            pbState?.position ?: 0L
+                        } catch (_: Exception) { 0L }
+                        val currentPlaySec = if (playbackPositionMs > 0L) {
+                            playbackPositionMs / 1000L
+                        } else {
+                            current?.currentSongSeconds ?: 0L
+                        }
+
                         QuazaarApplication.instance.syncManager.sendLivePlaybackTick(
                             title = title,
                             artists = artists,
                             album = album,
                             isPlaying = true,
-                            currentSeconds = current?.currentSongSeconds ?: 0L,
+                            currentSeconds = currentPlaySec,
+                            durationSeconds = trackDurationSec,
+                            durationMs = trackDurationMs,
                             artworkBase64 = artworkBase64
                         )
                     }

@@ -61,6 +61,14 @@ data class DayStat(
     val playCount: Int         // plays recorded on that day
 )
 
+data class RestoreResult(
+    val success: Boolean,
+    val tracksCount: Int = 0,
+    val playsCount: Int = 0,
+    val totalSeconds: Long = 0L,
+    val errorMessage: String? = null
+)
+
 class MusicDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
@@ -592,53 +600,116 @@ class MusicDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
     }
 
     
-    suspend fun restoreDataFromJson(jsonStr: String) = withContext(Dispatchers.IO) {
+    suspend fun restoreDataFromJson(jsonStr: String): RestoreResult = withContext(Dispatchers.IO) {
         val db = writableDatabase
         db.beginTransaction()
         try {
             val json = org.json.JSONObject(jsonStr)
-            db.execSQL("DELETE FROM tracks")
-            db.execSQL("DELETE FROM play_logs")
-            db.execSQL("DELETE FROM daily_stats")
+            db.execSQL("DELETE FROM $TABLE_TRACKS")
+            db.execSQL("DELETE FROM $TABLE_PLAY_LOGS")
+            db.execSQL("DELETE FROM $TABLE_DAILY_STATS")
             
+            var restoredTracks = 0
             val tracks = json.optJSONArray("tracks")
             if (tracks != null) {
                 for (i in 0 until tracks.length()) {
                     val t = tracks.getJSONObject(i)
-                    val cv = ContentValues().apply {
-                        put("song_id", t.optString("song_id"))
-                        put("title", t.optString("title"))
-                        put("artists_json", t.optJSONArray("artists")?.toString() ?: "[]")
-                        put("album", t.optString("album", ""))
-                        put("play_count", t.optInt("play_count"))
-                        put("first_played", t.optLong("first_played"))
-                        put("last_played", t.optLong("last_played"))
-                        put("total_seconds", t.optLong("total_seconds"))
-                        put("artwork_path", "")
+                    val lastPlayed = t.optLong("last_played", System.currentTimeMillis())
+                    val firstPlayed = if (t.has("first_played") && t.optLong("first_played") > 0) {
+                        t.optLong("first_played")
+                    } else {
+                        lastPlayed
                     }
-                    db.insert("tracks", null, cv)
+                    val cv = ContentValues().apply {
+                        put(COL_SONG_ID, t.optString("song_id"))
+                        put(COL_TITLE, t.optString("title"))
+                        put(COL_ARTISTS, t.optJSONArray("artists")?.toString() ?: "[]")
+                        put(COL_ALBUM, t.optString("album", ""))
+                        put(COL_PLAY_COUNT, t.optInt("play_count", 1))
+                        put(COL_FIRST_PLAYED, firstPlayed)
+                        put(COL_LAST_PLAYED, lastPlayed)
+                        put(COL_TOTAL_SECONDS, t.optLong("total_seconds", 0L))
+                        put(COL_ARTWORK_PATH, t.optString("artwork_path", ""))
+                    }
+                    db.insert(TABLE_TRACKS, null, cv)
+                    restoredTracks++
                 }
             }
             
+            var restoredPlays = 0
             val plays = json.optJSONArray("plays")
             if (plays != null) {
                 for (i in 0 until plays.length()) {
                     val p = plays.getJSONObject(i)
                     val cv = ContentValues().apply {
-                        put("event_id", p.optString("song_id") + "_" + p.optLong("timestamp"))
-                        put("song_id", p.optString("song_id"))
-                        put("title", p.optString("title"))
-                        put("artists_json", p.optJSONArray("artists")?.toString() ?: "[]")
-                        put("album", p.optString("album", ""))
-                        put("timestamp", p.optLong("timestamp"))
+                        put(COL_LOG_SONG_ID, p.optString("song_id"))
+                        put(COL_LOG_TITLE, p.optString("title"))
+                        put(COL_LOG_ARTISTS, p.optJSONArray("artists")?.toString() ?: "[]")
+                        put(COL_LOG_ALBUM, p.optString("album", ""))
+                        put(COL_LOG_TIMESTAMP, p.optLong("timestamp", System.currentTimeMillis()))
+                        put(COL_LOG_ARTWORK_PATH, p.optString("artwork_path", ""))
                     }
-                    db.insert("play_logs", null, cv)
+                    db.insert(TABLE_PLAY_LOGS, null, cv)
+                    restoredPlays++
                 }
             }
+
+            // Restore daily stats if present
+            val dailyStats = json.optJSONArray("daily_stats")
+            if (dailyStats != null && dailyStats.length() > 0) {
+                for (i in 0 until dailyStats.length()) {
+                    val ds = dailyStats.getJSONObject(i)
+                    val cv = ContentValues().apply {
+                        put(COL_DAY_DATE, ds.optString("date"))
+                        put(COL_DAY_SECONDS, ds.optLong("total_seconds", 0L))
+                        put(COL_DAY_PLAYS, ds.optInt("play_count", 0))
+                    }
+                    db.insertWithOnConflict(TABLE_DAILY_STATS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+                }
+            } else if (plays != null && plays.length() > 0) {
+                // Reconstruct daily stats from plays if not explicitly provided in JSON
+                val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                val dayPlaysMap = mutableMapOf<String, Int>()
+                for (i in 0 until plays.length()) {
+                    val p = plays.getJSONObject(i)
+                    val ts = p.optLong("timestamp", 0L)
+                    if (ts > 0L) {
+                        val dStr = dayFormat.format(Date(ts))
+                        dayPlaysMap[dStr] = (dayPlaysMap[dStr] ?: 0) + 1
+                    }
+                }
+                for ((dStr, count) in dayPlaysMap) {
+                    val cv = ContentValues().apply {
+                        put(COL_DAY_DATE, dStr)
+                        put(COL_DAY_SECONDS, 0L)
+                        put(COL_DAY_PLAYS, count)
+                    }
+                    db.insertWithOnConflict(TABLE_DAILY_STATS, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+                }
+            }
+
+            val totalSec = json.optLong("total_seconds", 0L)
+            db.execSQL("INSERT OR REPLACE INTO $TABLE_META (key, value) VALUES (?, ?)", arrayOf(KEY_TOTAL_SECONDS, totalSec))
+
             db.setTransactionSuccessful()
-            _totalListenSeconds.value = json.optLong("total_seconds", 0L)
+            _totalListenSeconds.value = totalSec
+            _currentPlaying.value = null
+            songLastCommittedMap.clear()
+            lastTickTimestamp = 0L
+
+            Log.i("DBHelper", "Restored successfully: $restoredTracks tracks, $restoredPlays plays, $totalSec seconds")
+            return@withContext RestoreResult(
+                success = true,
+                tracksCount = restoredTracks,
+                playsCount = restoredPlays,
+                totalSeconds = totalSec
+            )
         } catch (e: Exception) {
             Log.e("DBHelper", "Restore failed", e)
+            return@withContext RestoreResult(
+                success = false,
+                errorMessage = e.message ?: "Unknown error restoring data"
+            )
         } finally {
             db.endTransaction()
         }

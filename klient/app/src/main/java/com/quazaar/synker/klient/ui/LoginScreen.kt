@@ -31,14 +31,21 @@ fun LoginScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var password by remember { mutableStateOf("") }
-    var manualIp by remember { mutableStateOf(discoveredHost) }
+    val initialHost = remember(discoveredHost) {
+        if (discoveredHost.startsWith("172.17.") || discoveredHost.startsWith("172.18.") || discoveredHost.startsWith("172.19.") || discoveredHost == "localhost") ""
+        else discoveredHost
+    }
+    var manualIp by remember { mutableStateOf(initialHost) }
     var errorMsg by remember { mutableStateOf("") }
     var isLoggingIn by remember { mutableStateOf(false) }
     
-    // Update input if discoveredHost changes
+    // Update input if discoveredHost changes to a valid LAN IP
     LaunchedEffect(discoveredHost) {
-        if (manualIp.isEmpty() || manualIp.startsWith("172.")) {
-            manualIp = discoveredHost
+        val isDockerBridge = discoveredHost.startsWith("172.17.") || discoveredHost.startsWith("172.18.") || discoveredHost.startsWith("172.19.")
+        if (!isDockerBridge && discoveredHost.isNotEmpty() && discoveredHost != "localhost") {
+            if (manualIp.isEmpty() || manualIp.startsWith("172.17.") || manualIp.startsWith("172.18.") || manualIp.startsWith("172.19.")) {
+                manualIp = discoveredHost
+            }
         }
     }
 

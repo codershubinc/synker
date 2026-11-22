@@ -1,24 +1,29 @@
 package com.quazaar.synker.klient
 
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.lifecycle.lifecycleScope
+import com.quazaar.synker.klient.QuazaarApplication
 import com.quazaar.synker.klient.data.CurrentlyPlaying
 import com.quazaar.synker.klient.data.DayStat
 import com.quazaar.synker.klient.data.TrackStat
+import com.quazaar.synker.klient.ui.AppTab
+import com.quazaar.synker.klient.ui.LoginScreen
 import com.quazaar.synker.klient.ui.MainMediaDashboard
 import com.quazaar.synker.klient.ui.SettingsScreen
-import com.quazaar.synker.klient.ui.LoginScreen
-import android.content.Context
+import com.quazaar.synker.klient.update.UpdateManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import com.quazaar.synker.klient.QuazaarApplication
 
 class MainActivity : ComponentActivity() {
 
@@ -28,6 +33,23 @@ class MainActivity : ComponentActivity() {
     private val allTracksState = mutableStateOf<List<TrackStat>>(emptyList())
     private val dailyStatsState = mutableStateOf<List<DayStat>>(emptyList())
     private val searchQueryState = mutableStateOf("")
+    private val targetTabState = mutableStateOf<AppTab?>(null)
+
+    private val requestNotificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getStringExtra("target_tab") == "ABOUT") {
+            targetTabState.value = AppTab.ABOUT
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
 
     private fun updateNotificationAccessState() {
         val enabledListeners = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
@@ -46,12 +68,26 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        handleIntent(intent)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestNotificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
         val app = application as QuazaarApplication
         val dbHelper = app.databaseHelper
 
         updateNotificationAccessState()
         if (hasNotificationAccessState.value) {
             com.quazaar.synker.klient.service.QuazaarBackgroundDaemon.start(this)
+        }
+
+        // Check for updates in background and notify user if a new release is available
+        lifecycleScope.launch {
+            delay(1500L)
+            UpdateManager.checkAndNotifyIfUpdateAvailable(this@MainActivity)
         }
 
         // Periodically refresh stats and database records
@@ -93,10 +129,25 @@ class MainActivity : ComponentActivity() {
                 val lastSyncTimestamp by syncManager.lastSyncTimestamp.collectAsState()
                 val syncStatus by syncManager.syncStatus.collectAsState()
                 val isWebSocketConnected by syncManager.isWebSocketConnected.collectAsState()
+                val globalTotalListenSeconds by syncManager.globalTotalListenSeconds.collectAsState()
+                val globalTotalPlays by syncManager.globalTotalPlays.collectAsState()
+                val globalDeviceCount by syncManager.globalDeviceCount.collectAsState()
                 var showSettings by remember { mutableStateOf(false) }
 
                 if (showSettings) {
-                    SettingsScreen(onBack = { showSettings = false })
+                    SettingsScreen(
+                        onBack = {
+                            showSettings = false
+                            lifecycleScope.launch {
+                                refreshData(dbHelper)
+                            }
+                        },
+                        onDataRestored = {
+                            lifecycleScope.launch {
+                                refreshData(dbHelper)
+                            }
+                        }
+                    )
                 } else {
                     MainMediaDashboard(
                         currentPlaying = currentPlaying,
@@ -133,7 +184,11 @@ class MainActivity : ComponentActivity() {
                         },
                         onOpenSettings = {
                             showSettings = true
-                        }
+                        },
+                        globalTotalListenSeconds = globalTotalListenSeconds,
+                        globalTotalPlays = globalTotalPlays,
+                        globalDeviceCount = globalDeviceCount,
+                        initialTab = targetTabState.value
                     )
                 }
             }
@@ -149,6 +204,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val app = application as QuazaarApplication
             refreshData(app.databaseHelper)
+            app.syncManager.fetchGlobalSummary()
         }
     }
 }
