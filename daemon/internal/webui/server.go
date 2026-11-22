@@ -26,6 +26,7 @@ import (
 
 	"github.com/quazaar/synker/daemon/internal/protocol"
 	"github.com/quazaar/synker/daemon/internal/tracker"
+	"github.com/quazaar/synker/daemon/internal/updater"
 )
 
 //go:embed dashboard.html
@@ -58,7 +59,10 @@ type LiveMediaState struct {
 	Artist         string    `json:"artist"`
 	Album          string    `json:"album"`
 	PlaybackStatus string    `json:"playback_status"` // "Playing", "Paused", "Idle"
+	CurrentS       int64     `json:"current_s"`
 	CurrentSeconds int64     `json:"current_seconds"`
+	DurationS      int64     `json:"duration_s"`
+	DurationSec    int64     `json:"duration_sec"`
 	DurationMS     int64     `json:"duration_ms"`
 	ArtworkURL     string    `json:"artwork_url,omitempty"`
 	Source         string    `json:"source"`
@@ -130,6 +134,24 @@ func (ws *WebServer) SetLiveMediaState(state LiveMediaState) {
 	if len(state.Artists) > 0 && state.Artist == "" {
 		state.Artist = fmt.Sprintf("%v", state.Artists[0])
 	}
+
+	// Normalize duration keys
+	if state.DurationS == 0 && state.DurationMS > 0 {
+		state.DurationS = state.DurationMS / 1000
+	} else if state.DurationMS == 0 && state.DurationS > 0 {
+		state.DurationMS = state.DurationS * 1000
+	}
+	if state.DurationSec == 0 {
+		state.DurationSec = state.DurationS
+	}
+
+	// Normalize current playback progress keys
+	if state.CurrentS == 0 && state.CurrentSeconds > 0 {
+		state.CurrentS = state.CurrentSeconds
+	} else if state.CurrentSeconds == 0 && state.CurrentS > 0 {
+		state.CurrentSeconds = state.CurrentS
+	}
+
 	state.LastUpdated = time.Now()
 	if state.DeviceID == "" {
 		state.DeviceID = "client"
@@ -271,6 +293,7 @@ func (ws *WebServer) Handler() http.Handler {
 		var numDevices int
 		var todaySec int64
 		var todayPlays int
+		var trackedFrom string
 
 		if ws.tracker != nil {
 			history := ws.tracker.GetHistoryStats()
@@ -279,6 +302,8 @@ func (ws *WebServer) Handler() http.Handler {
 
 			devices := ws.tracker.GetDevices()
 			numDevices = len(devices)
+
+			trackedFrom = ws.tracker.GetTrackedFromDate()
 
 			tracks := ws.tracker.GetTracks()
 			uniqueSongs = len(tracks)
@@ -295,6 +320,25 @@ func (ws *WebServer) Handler() http.Handler {
 		}
 
 		state := ws.GetLiveMediaState()
+		
+		if state.Title == "" && ws.tracker != nil {
+			recent := ws.tracker.GetRecentPlays()
+			if len(recent) > 0 {
+				last := recent[0]
+				state.Title = last.Title
+				state.Artists = last.Artists
+				if len(state.Artists) > 0 {
+					state.Artist = state.Artists[0]
+				}
+				state.Album = last.Album
+				state.DeviceID = last.DeviceID
+				state.DeviceName = last.DeviceName
+				state.Source = last.SourceApp
+				state.PlaybackStatus = "Stopped"
+				state.LastUpdated = last.Timestamp
+			}
+		}
+
 		songID := tracker.GenerateSongID(state.Title, state.Artists)
 
 		ws.artworkMu.RLock()
@@ -330,6 +374,7 @@ func (ws *WebServer) Handler() http.Handler {
 			"device_numbers": numDevices,
 			"todays_total_listening_time_sec": todaySec,
 			"todays_play_count": todayPlays,
+			"tracked_from": trackedFrom,
 			"last_playing_song": state,
 		}
 
@@ -800,6 +845,55 @@ func (ws *WebServer) Handler() http.Handler {
 	mux.HandleFunc("/ws/live", func(w http.ResponseWriter, r *http.Request) {
 		// WS upgrades can't do 301 — just handle it at the old path too
 		ws.handleLiveWebSocket(w, r)
+	})
+
+	// Daemon Self-Update Check & Trigger Endpoint
+	mux.HandleFunc("/api/v1/daemon/update", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.Method == http.MethodGet {
+			info, err := updater.CheckForUpdate("0.0.1")
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(info)
+			return
+		}
+
+		if r.Method == http.MethodPost {
+			info, err := updater.CheckForUpdate("0.0.1")
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+				return
+			}
+			if !info.HasUpdate || info.AssetURL == "" {
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"status":  "already_up_to_date",
+					"message": "synkerd is already on the latest version",
+				})
+				return
+			}
+
+			go func() {
+				time.Sleep(500 * time.Millisecond)
+				if err := updater.DownloadAndApplyUpdate(info.AssetURL); err == nil {
+					_ = updater.RestartDaemon()
+				}
+			}()
+
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"status":         "updating",
+				"target_version": info.LatestVersion,
+				"message":        "Downloading update and restarting daemon...",
+			})
+			return
+		}
+
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	})
 
 	return mux

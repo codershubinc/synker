@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -54,13 +55,94 @@ func (d *DiscoveryService) PeerChannel() <-chan PeerInfo {
 	return d.peerCh
 }
 
+// isVirtualOrContainerInterface checks for Docker, bridge, and virtual tunnel interfaces
+func isVirtualOrContainerInterface(name string) bool {
+	lower := strings.ToLower(name)
+	virtualPrefixes := []string{
+		"docker", "br-", "veth", "virbr", "vmnet", "vboxnet",
+		"tun", "tap", "tailscale", "wg", "dummy", "flannel", "cni", "kube",
+	}
+	for _, prefix := range virtualPrefixes {
+		if strings.HasPrefix(lower, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// getFilteredLANInterfaces returns only active, physical/LAN interfaces and their IPv4 addresses,
+// filtering out bridge, container, loopback, and unroutable interfaces.
+func getFilteredLANInterfaces() ([]net.Interface, []string) {
+	var validIfaces []net.Interface
+	var validIPs []string
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, nil
+	}
+
+	for _, iface := range ifaces {
+		// Must be UP, have MULTICAST, and not be LOOPBACK
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagMulticast == 0 {
+			continue
+		}
+		if isVirtualOrContainerInterface(iface.Name) {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		hasValidIPv4 := false
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok || ipNet.IP == nil {
+				continue
+			}
+			ipv4 := ipNet.IP.To4()
+			if ipv4 == nil || ipv4.IsLoopback() || ipv4.IsLinkLocalUnicast() {
+				continue
+			}
+			// Skip typical docker default subnets (172.17.x.x, 172.18.x.x) on host virtual bridges
+			if ipv4[0] == 172 && (ipv4[1] == 17 || ipv4[1] == 18) {
+				continue
+			}
+			validIPs = append(validIPs, ipv4.String())
+			hasValidIPv4 = true
+		}
+
+		if hasValidIPv4 {
+			validIfaces = append(validIfaces, iface)
+		}
+	}
+
+	return validIfaces, validIPs
+}
+
 // StartBroadcasting advertises this node over mDNS
 func (d *DiscoveryService) StartBroadcasting() error {
+	validIfaces, validIPs := getFilteredLANInterfaces()
+	primaryIP := ""
+	if len(validIPs) > 0 {
+		primaryIP = validIPs[0]
+	}
+
 	txtRecords := []string{
 		fmt.Sprintf("id=%s", d.deviceID),
 		fmt.Sprintf("name=%s", d.deviceName),
 		"version=1.0",
 		"type=desktop",
+	}
+	if primaryIP != "" {
+		txtRecords = append(txtRecords, fmt.Sprintf("lan_ip=%s", primaryIP))
+		txtRecords = append(txtRecords, fmt.Sprintf("ips=%s", strings.Join(validIPs, ",")))
+	}
+
+	var ifaceSlice []net.Interface
+	if len(validIfaces) > 0 {
+		ifaceSlice = validIfaces
 	}
 
 	server, err := zeroconf.Register(
@@ -69,14 +151,15 @@ func (d *DiscoveryService) StartBroadcasting() error {
 		ServiceDomain,
 		d.port,
 		txtRecords,
-		nil,
+		ifaceSlice,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to register zeroconf service: %w", err)
 	}
 
 	d.server = server
-	log.Printf("[Discovery] mDNS broadcast registered for device %s (%s) on port %d", d.deviceName, d.deviceID, d.port)
+	log.Printf("[Discovery] mDNS broadcast registered for device %s (%s) on port %d (LAN IPs: %v, ifaces: %d)",
+		d.deviceName, d.deviceID, d.port, validIPs, len(validIfaces))
 	return nil
 }
 
@@ -96,7 +179,7 @@ func (d *DiscoveryService) StartBrowsing() {
 				continue
 			}
 
-			var devID, devName string
+			var devID, devName, txtLanIP string
 			for _, txt := range entry.Text {
 				var k, v string
 				n, _ := fmt.Sscanf(txt, "%s=%s", &k, &v)
@@ -105,6 +188,8 @@ func (d *DiscoveryService) StartBrowsing() {
 						devID = v
 					} else if k == "name" {
 						devName = v
+					} else if k == "lan_ip" {
+						txtLanIP = v
 					}
 				}
 			}
@@ -117,9 +202,23 @@ func (d *DiscoveryService) StartBrowsing() {
 			}
 
 			var targetIP net.IP
-			if len(entry.AddrIPv4) > 0 {
+			if txtLanIP != "" {
+				if parsed := net.ParseIP(txtLanIP); parsed != nil {
+					targetIP = parsed
+				}
+			}
+			if targetIP == nil {
+				for _, ip := range entry.AddrIPv4 {
+					ipv4 := ip.To4()
+					if ipv4 != nil && !ipv4.IsLoopback() && !(ipv4[0] == 172 && (ipv4[1] == 17 || ipv4[1] == 18)) {
+						targetIP = ip
+						break
+					}
+				}
+			}
+			if targetIP == nil && len(entry.AddrIPv4) > 0 {
 				targetIP = entry.AddrIPv4[0]
-			} else if len(entry.AddrIPv6) > 0 {
+			} else if targetIP == nil && len(entry.AddrIPv6) > 0 {
 				targetIP = entry.AddrIPv6[0]
 			}
 

@@ -1,0 +1,18 @@
+[Unit]
+Description=Synker Music Daemon (Apple Music & MPRIS Sync)
+Documentation=https://github.com/codershubinc/synker
+After=network.target sound.target
+
+[Service]
+Type=simple
+User=swap
+Group=swap
+ExecStart=/home/swap/.local/bin/synkerd -port 4242 -config /home/swap/.config/synker
+Restart=always
+RestartSec=3s
+Environment=PORT=4242
+Environment=CONFIG_DIR=/home/swap/.config/synker
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

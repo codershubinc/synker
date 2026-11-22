@@ -13,6 +13,7 @@ import (
 
 	"github.com/quazaar/synker/daemon/internal/discovery"
 	"github.com/quazaar/synker/daemon/internal/tracker"
+	"github.com/quazaar/synker/daemon/internal/updater"
 	"github.com/quazaar/synker/daemon/internal/webui"
 )
 
@@ -39,6 +40,7 @@ Service Commands:
   start, --start             Start the daemon service
   stop, --stop               Stop the daemon service
   uninstall, --uninstall     Stop and remove systemd service from auto-start
+  update, --update, -u       Check and install latest synkerd daemon update from GitHub
   version, --version, -v     Print version and build information
 
 Daemon Execution Flags:
@@ -53,6 +55,41 @@ func handleServiceCommand(arg string) bool {
 	switch arg {
 	case "version", "--version", "-v":
 		printVersion()
+		return true
+
+	case "update", "--update", "-u":
+		fmt.Printf("[*] Checking for synkerd updates from GitHub (%s/%s)...\n", updater.GithubOwner, updater.GithubRepo)
+		info, err := updater.CheckForUpdate(version)
+		if err != nil {
+			fmt.Printf("[-] Update check failed: %v\n", err)
+			return true
+		}
+		if !info.HasUpdate {
+			fmt.Printf("[✓] synkerd is up to date (version: %s)\n", version)
+			return true
+		}
+		fmt.Printf("[*] New release available: v%s (current: %s)\n", info.LatestVersion, version)
+		if info.AssetURL == "" {
+			fmt.Printf("[-] No matching binary asset found for %s in release\n", info.LatestVersion)
+			return true
+		}
+		fmt.Printf("[*] Downloading update asset %s...\n", info.AssetName)
+		if err := updater.DownloadAndApplyUpdate(info.AssetURL); err != nil {
+			fmt.Printf("[-] Update failed: %v\n", err)
+			return true
+		}
+		fmt.Printf("[✓] synkerd binary successfully updated to v%s!\n", info.LatestVersion)
+
+		// If running as systemd service, restart service; otherwise restart in-place
+		cmd := exec.Command("systemctl", "--user", "is-active", serviceName)
+		if err := cmd.Run(); err == nil {
+			fmt.Printf("[*] Restarting %s via systemd...\n", serviceName)
+			_ = exec.Command("systemctl", "--user", "restart", serviceName).Run()
+			fmt.Println("[✓] Service restarted.")
+		} else {
+			fmt.Printf("[*] Restarting synkerd process in-place...\n")
+			_ = updater.RestartDaemon()
+		}
 		return true
 	case "status", "--status", "-s":
 		cmd := exec.Command("systemctl", "--user", "status", serviceName, "--no-pager")

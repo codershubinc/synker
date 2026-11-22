@@ -29,7 +29,10 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 style="margin:0;">Global Statistics</h1>
+            <div>
+                <h1 style="margin:0;">Global Statistics</h1>
+                <p style="color:#888; margin: 8px 0 0 0; font-size: 14px;" id="valTrackedSince">Tracked since: Loading...</p>
+            </div>
             <a href="/">&larr; Back to Dashboard</a>
         </div>
 
@@ -90,6 +93,11 @@
                 document.getElementById('valPlays').textContent = (data.total_play_count || 0).toLocaleString();
                 document.getElementById('valSongs').textContent = (data.all_songs || 0).toLocaleString();
                 document.getElementById('valDevices').textContent = data.device_numbers || 0;
+                if (data.tracked_from && data.tracked_from !== "Unknown") {
+                    document.getElementById('valTrackedSince').textContent = `Tracked since: ${data.tracked_from}`;
+                } else {
+                    document.getElementById('valTrackedSince').textContent = `Tracked since: Not available`;
+                }
 
                 // Update Now Playing / Last Played
                 const np = data.last_playing_song;
