@@ -3,162 +3,1104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quazaar Synker - Apple Music & MPRIS Sync Bridge</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Quazaar Synker — Realtime Apple Music & MPRIS Sync Bridge</title>
+    <meta name="description" content="Decentralized peer-to-peer music telemetry bridge syncing Apple Music from Android to Linux desktop MPRIS, local SQLite history, and dynamic GitHub README badges.">
+    <meta name="theme-color" content="#000000">
+
+    <!-- Open Graph / Meta -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Quazaar Synker — Apple Music & Linux Telemetry Bridge">
+    <meta property="og:description" content="Stream live playback telemetry, track lossless play history, and control Linux MPRIS from Android.">
+    <meta property="og:url" content="https://codershubinc.github.io/synker/">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
     <style>
         :root {
-            --am-red: #fa243c;
-            --am-red-hover: #ff3b52;
+            --am-accent: #FA243C;
+            --am-accent-glow: rgba(250, 36, 60, 0.35);
+            --am-cyan: #64D2FF;
+            --am-cyan-glow: rgba(100, 210, 255, 0.25);
+            --am-indigo: #5E5CE6;
+            --am-green: #30D158;
+            --am-purple: #BF5AF2;
+
             --bg-base: #000000;
-            --text-primary: #ffffff;
-            --text-secondary: #a1a1a6;
-            --surface: #1c1c1e;
+            --bg-surface: #0E0E10;
+            --bg-card: #151518;
+            --bg-card-hover: #1E1E23;
+            --bg-glass: rgba(20, 20, 24, 0.75);
+
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-highlight: rgba(255, 255, 255, 0.16);
+            --border-glow: rgba(250, 36, 60, 0.4);
+
+            --text-primary: #FFFFFF;
+            --text-secondary: #9898A0;
+            --text-muted: #5C5C64;
+
+            --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
         }
-        body {
-            font-family: 'Inter', -apple-system, sans-serif;
-            background-color: var(--bg-base);
-            color: var(--text-primary);
+
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-base);
+            color: var(--text-primary);
             line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
         }
+
+        /* Ambient glowing background blobs */
+        .ambient-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+        .glow-orb-1 {
+            position: absolute;
+            top: -150px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 500px;
+            background: radial-gradient(ellipse at center, rgba(250, 36, 60, 0.18) 0%, rgba(94, 92, 230, 0.08) 50%, transparent 80%);
+            filter: blur(80px);
+            opacity: 0.85;
+        }
+        .glow-orb-2 {
+            position: absolute;
+            top: 45%;
+            right: -100px;
+            width: 600px;
+            height: 500px;
+            background: radial-gradient(ellipse at center, rgba(100, 210, 255, 0.12) 0%, transparent 70%);
+            filter: blur(100px);
+            opacity: 0.6;
+        }
+
         .container {
-            max-width: 900px;
+            max-width: 1180px;
             margin: 0 auto;
-            padding: 60px 20px;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
         }
-        header {
+
+        /* Navigation Header */
+        nav {
+            position: sticky;
+            top: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            z-index: 100;
+        }
+        .nav-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 70px;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 19px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+        .logo-mark {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, var(--am-accent), #FF5E74);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 17px;
+            box-shadow: 0 4px 14px var(--am-accent-glow);
+        }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 28px;
+        }
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+        .btn-nav-gh {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 99px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary) !important;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-nav-gh:hover {
+            background: rgba(255, 255, 255, 0.16);
+            border-color: var(--border-highlight);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 90px 0 60px;
             text-align: center;
-            margin-bottom: 60px;
         }
-        .hero-title {
-            font-size: 48px;
-            font-weight: 700;
-            margin-bottom: 16px;
-            background: linear-gradient(135deg, #fff, #a1a1a6);
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 99px;
+            background: rgba(250, 36, 60, 0.1);
+            border: 1px solid rgba(250, 36, 60, 0.3);
+            font-size: 13px;
+            font-weight: 600;
+            color: #FF5E74;
+            margin-bottom: 24px;
+        }
+        .hero-badge span.pulse-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: var(--am-accent);
+            box-shadow: 0 0 10px var(--am-accent);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.7; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.7; }
+        }
+
+        .hero h1 {
+            font-size: 56px;
+            font-weight: 800;
+            letter-spacing: -1.6px;
+            line-height: 1.1;
+            margin-bottom: 20px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            background: linear-gradient(180deg, #FFFFFF 0%, #D0D0D8 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        .hero-subtitle {
-            font-size: 20px;
+        .hero-desc {
+            font-size: 19px;
             color: var(--text-secondary);
-            max-width: 600px;
-            margin: 0 auto 32px;
+            max-width: 680px;
+            margin: 0 auto 36px;
+            font-weight: 400;
+            line-height: 1.55;
+        }
+        .hero-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 50px;
+        }
+        .btn-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 26px;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
         }
         .btn-primary {
-            background-color: var(--am-red);
-            color: #fff;
-            padding: 14px 28px;
-            border-radius: 30px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 16px;
-            transition: background 0.2s;
-            display: inline-block;
+            background: linear-gradient(135deg, var(--am-accent) 0%, #FF334B 100%);
+            color: #FFFFFF;
+            box-shadow: 0 8px 24px var(--am-accent-glow);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         .btn-primary:hover {
-            background-color: var(--am-red-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(250, 36, 60, 0.5);
+            background: linear-gradient(135deg, #FF334B 0%, #FF4D61 100%);
         }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 24px;
-            margin-bottom: 60px;
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-highlight);
         }
-        .card {
-            background-color: var(--surface);
-            padding: 32px;
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.1);
-            transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.3);
         }
-        .card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(255,255,255,0.3);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+
+        /* Beta Warning Banner */
+        .beta-warning-banner {
+            max-width: 760px;
+            margin: 0 auto 36px;
+            padding: 16px 20px;
+            border-radius: 16px;
+            background: rgba(255, 159, 10, 0.08);
+            border: 1px solid rgba(255, 159, 10, 0.35);
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            text-align: left;
+            backdrop-filter: blur(12px);
         }
-        .card h3 {
-            font-size: 22px;
-            margin-top: 0;
-            margin-bottom: 12px;
+        .beta-warning-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+            line-height: 1.2;
         }
-        .card p {
+        .beta-warning-content {
+            font-size: 13.5px;
+            line-height: 1.55;
+            color: #FFD182;
+        }
+        .beta-warning-content strong {
+            color: #FFAE33;
+            font-weight: 700;
+        }
+        .warning-highlight {
+            color: #FFFFFF;
+            font-weight: 600;
+            display: block;
+            margin-top: 4px;
+        }
+
+        /* Interactive Live Demo Widget */
+        .demo-showcase {
+            max-width: 760px;
+            margin: 0 auto 90px;
+            padding: 30px;
+            border-radius: 28px;
+            background: rgba(18, 18, 22, 0.7);
+            border: 1px solid var(--border-highlight);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(250, 36, 60, 0.08);
+            position: relative;
+        }
+        .demo-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .demo-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            color: var(--am-cyan);
+            background: rgba(100, 210, 255, 0.1);
+            padding: 4px 10px;
+            border-radius: 99px;
+            border: 1px solid rgba(100, 210, 255, 0.25);
+        }
+        .demo-tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 3px;
+            border-radius: 10px;
+        }
+        .demo-tab-btn {
+            background: transparent;
+            border: none;
             color: var(--text-secondary);
-            margin: 0;
-            font-size: 15px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        .icon {
-            font-size: 32px;
-            margin-bottom: 20px;
+        .demo-tab-btn.active {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+        }
+
+        .media-player-card {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+        .album-art-wrap {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            flex-shrink: 0;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+            background: linear-gradient(135deg, #1C1C22, #2A2A34);
+        }
+        .album-art-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .equalizer {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 18px;
+            padding: 4px 6px;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(8px);
+            border-radius: 6px;
+        }
+        .eq-bar {
+            width: 3px;
+            background-color: var(--am-accent);
+            border-radius: 2px;
+            animation: bounce 1.2s infinite ease-in-out;
+        }
+        .eq-bar:nth-child(1) { height: 60%; animation-delay: 0.1s; }
+        .eq-bar:nth-child(2) { height: 100%; animation-delay: 0.3s; }
+        .eq-bar:nth-child(3) { height: 40%; animation-delay: 0.2s; }
+        .eq-bar:nth-child(4) { height: 80%; animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 100% { height: 30%; }
+            50% { height: 100%; }
+        }
+
+        .media-details {
+            flex-grow: 1;
+            min-width: 0;
+        }
+        .media-status {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--am-accent);
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .media-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+        .media-artist {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        /* Scrubber / Progress Bar */
+        .timeline-scrubber {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .time-label {
+            font-size: 12px;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            min-width: 38px;
+        }
+        .progress-track {
+            flex-grow: 1;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 99px;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 48%;
+            background: linear-gradient(90deg, var(--am-accent), #FF5E74);
+            border-radius: 99px;
+            transition: width 0.3s ease;
+        }
+
+        /* Live Metrics Strip */
+        .demo-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 18px;
+            border-top: 1px solid var(--border-subtle);
+        }
+        .metric-item {
+            text-align: center;
+        }
+        .metric-val {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+        }
+        .metric-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Section Headings */
+        .section-header {
+            text-align: center;
+            max-width: 680px;
+            margin: 0 auto 50px;
+        }
+        .section-tag {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--am-accent);
+            margin-bottom: 10px;
             display: inline-block;
         }
-        .architecture {
-            background: linear-gradient(180deg, #1c1c1e 0%, #000 100%);
-            padding: 40px;
+        .section-title {
+            font-size: 38px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 14px;
+        }
+        .section-desc {
+            font-size: 16px;
+            color: var(--text-secondary);
+        }
+
+        /* Feature Cards Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 100px;
+        }
+        .feature-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 22px;
+            padding: 32px;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow: hidden;
+        }
+        .feature-card:hover {
+            border-color: var(--border-highlight);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+        }
+        .feature-icon-wrap {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+        }
+        .feature-card h3 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.4px;
+            margin-bottom: 10px;
+        }
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 14.5px;
+            line-height: 1.6;
+        }
+
+        /* Code / Installation Showcase */
+        .install-box {
+            background: #0A0A0C;
+            border: 1px solid var(--border-highlight);
             border-radius: 24px;
-            text-align: center;
-            border: 1px solid rgba(255,255,255,0.1);
+            padding: 36px;
+            max-width: 860px;
+            margin: 0 auto 100px;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
         }
-        .architecture h2 {
-            font-size: 32px;
+        .install-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
         }
-        .architecture p {
-            color: var(--text-secondary);
-            max-width: 600px;
-            margin: 0 auto;
+        .install-title {
+            font-size: 20px;
+            font-weight: 700;
         }
-        footer {
-            text-align: center;
-            margin-top: 80px;
+        .install-tabs {
+            display: flex;
+            gap: 8px;
+        }
+        .install-tab-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-subtle);
             color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .install-tab-btn.active {
+            background: var(--text-primary);
+            color: #000;
+            border-color: var(--text-primary);
+        }
+
+        .terminal-block {
+            background: #000000;
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            padding: 18px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: var(--font-mono);
             font-size: 14px;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            padding-top: 30px;
+            color: #E2E2E6;
+            margin-bottom: 16px;
+            overflow-x: auto;
+        }
+        .terminal-code {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .prompt-symbol {
+            color: var(--am-accent);
+            user-select: none;
+            font-weight: 700;
+        }
+        .btn-copy {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .btn-copy:hover {
+            background: rgba(255, 255, 255, 0.16);
+            color: var(--text-primary);
+        }
+
+        /* SVG Badges Showcase Section */
+        .badge-showcase {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 28px;
+            padding: 44px;
+            margin-bottom: 100px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: center;
+        }
+        .badge-preview-card {
+            background: #000;
+            border: 1px solid var(--border-highlight);
+            border-radius: 18px;
+            padding: 24px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        .badge-preview-card svg {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+        }
+        .badge-info h3 {
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.6px;
+            margin-bottom: 12px;
+        }
+        .badge-info p {
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin-bottom: 20px;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border-subtle);
+            padding: 50px 0;
+            color: var(--text-muted);
+            font-size: 14px;
+            text-align: center;
+        }
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 16px;
+        }
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .footer-links a:hover {
+            color: var(--text-primary);
+        }
+
+        /* Responsive Styles */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 38px; letter-spacing: -1px; }
+            .hero-desc { font-size: 16px; }
+            .media-player-card { flex-direction: column; text-align: center; }
+            .timeline-scrubber { width: 100%; }
+            .badge-showcase { grid-template-columns: 1fr; }
+            .nav-links { display: none; }
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <header>
-        <h1 class="hero-title">Quazaar Synker</h1>
-        <p class="hero-subtitle">The ultimate bridge between your Android device, Apple Music, and your Linux desktop environment.</p>
-        <a href="https://github.com/codershubinc/synker" class="btn-primary">View on GitHub</a>
-    </header>
-
-    <div class="grid">
-        <div class="card">
-            <div class="icon">📱</div>
-            <h3>Android Client App</h3>
-            <p>A beautifully designed background service that hooks into your Android notification listener to securely extract live playback data from Apple Music, Spotify, and more.</p>
-        </div>
-        <div class="card">
-            <div class="icon">⚡</div>
-            <h3>Go Daemon</h3>
-            <p>A lightning-fast Linux daemon that receives encrypted websocket payloads from your phone, stores the playback history in a local SQLite database, and exposes REST APIs.</p>
-        </div>
-        <div class="card">
-            <div class="icon">📊</div>
-            <h3>Live Command Center</h3>
-            <p>An embedded web UI showcasing your real-time listening activity, complete with album artwork extraction, day-by-day play history, and Apple Music Replay analytics.</p>
-        </div>
-        <div class="card">
-            <div class="icon">🔌</div>
-            <h3>MPRIS Integration</h3>
-            <p>Acts as a virtual media player on your Linux desktop. Pause, skip, or view what's playing on your phone directly from your desktop panel via D-Bus MPRIS specifications.</p>
-        </div>
-    </div>
-
-    <div class="architecture">
-        <h2>How It Works</h2>
-        <p>Your Android device runs the Synker Client, intercepting media notifications and securely sending P2P UDP broadcasts and WebSocket events to the Synker Daemon running on your Linux host. The Daemon logs the data to SQLite, exposes a WebUI, and proxies the controls via MPRIS.</p>
-    </div>
-
-    <footer>
-        &copy; 2026 Codershubinc. Built with Go, Kotlin & Jetpack Compose.
-    </footer>
+<div class="ambient-glow">
+    <div class="glow-orb-1"></div>
+    <div class="glow-orb-2"></div>
 </div>
+
+<!-- Header Navigation -->
+<nav>
+    <div class="container nav-content">
+        <a href="#" class="logo">
+            <div class="logo-mark"></div>
+            <span>Synker</span>
+        </a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#demo">Live Demo</a>
+            <a href="#install">Install</a>
+            <a href="#badges">Badges</a>
+            <a href="https://github.com/codershubinc/synker" target="_blank" class="btn-nav-gh">
+                <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                <span>GitHub</span>
+            </a>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Container -->
+<div class="container">
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-badge">
+            <span class="pulse-dot"></span>
+            <span id="heroVersionTag">Synker v0.0.2-beta • Now Live</span>
+        </div>
+
+        <h1>Your Apple Music Habits.<br>Everywhere, in Real Time.</h1>
+        <p class="hero-desc">
+            Decentralized telemetry bridge that seamlessly streams live playback, play history, and lossless artwork from Android to Linux desktop MPRIS, SQLite analytics, and GitHub profile badges.
+        </p>
+
+        <div class="hero-actions">
+            <a href="https://github.com/codershubinc/synker/releases/latest" id="btnDownloadApk" class="btn-cta btn-primary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span>Download Android Client</span>
+            </a>
+            <a href="#install" class="btn-cta btn-secondary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="4 17 10 11 4 5"/>
+                    <line x1="12" y1="19" x2="20" y2="19"/>
+                </svg>
+                <span>Install Linux Daemon</span>
+            </a>
+        </div>
+
+        <!-- Beta Warning Banner -->
+        <div class="beta-warning-banner">
+            <div class="beta-warning-icon">⚠️</div>
+            <div class="beta-warning-content">
+                <strong>Active Beta Notice — Breaking Changes May Occur:</strong>
+                Synker is currently in rapid beta development. Database schemas, sync protocols, and APIs may change between releases.
+                <span class="warning-highlight">Always take a JSON data backup from the Klient app (Settings &rarr; Export Backup) before updating to prevent data loss.</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Live Demo Widget -->
+    <section id="demo" class="demo-showcase">
+        <div class="demo-topbar">
+            <div class="demo-pill">
+                <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--am-cyan)"></span>
+                <span>WS STREAM LIVE • P2P LAN</span>
+            </div>
+            <div class="demo-tabs">
+                <button class="demo-tab-btn active" id="btnSourceMobile" onclick="switchDemoSource('mobile')">📱 Mobile Client</button>
+                <button class="demo-tab-btn" id="btnSourceDesktop" onclick="switchDemoSource('desktop')">🖥️ Desktop MPRIS</button>
+            </div>
+        </div>
+
+        <div class="media-player-card">
+            <div class="album-art-wrap">
+                <!-- Cover SVG placeholder / artwork -->
+                <svg class="album-art-img" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="200" height="200" fill="#181820"/>
+                    <circle cx="100" cy="100" r="75" fill="url(#artGrad)"/>
+                    <circle cx="100" cy="100" r="28" fill="#121216"/>
+                    <circle cx="100" cy="100" r="6" fill="#FA243C"/>
+                    <defs>
+                        <linearGradient id="artGrad" x1="25" y1="25" x2="175" y2="175" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#FA243C"/>
+                            <stop offset="0.5" stop-color="#BF5AF2"/>
+                            <stop offset="1" stop-color="#64D2FF"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <div class="equalizer">
+                    <div class="eq-bar"></div>
+                    <div class="eq-bar"></div>
+                    <div class="eq-bar"></div>
+                    <div class="eq-bar"></div>
+                </div>
+            </div>
+
+            <div class="media-details">
+                <div class="media-status" id="demoStatus">PLAYING ON APPLE MUSIC</div>
+                <div class="media-title" id="demoTitle">Starboy (feat. Daft Punk)</div>
+                <div class="media-artist" id="demoArtist">The Weeknd • Starboy</div>
+
+                <div class="timeline-scrubber">
+                    <span class="time-label" id="demoCurTime">01:42</span>
+                    <div class="progress-track" onclick="scrubDemo(event)">
+                        <div class="progress-fill" id="demoProgressFill" style="width: 48%;"></div>
+                    </div>
+                    <span class="time-label" id="demoTotalTime">03:50</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-metrics">
+            <div class="metric-item">
+                <div class="metric-val" id="metricTime">142h 18m</div>
+                <div class="metric-label">Listening Time</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-val" id="metricPlays">2,419</div>
+                <div class="metric-label">Total Plays</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-val" id="metricDevices">2 Active</div>
+                <div class="metric-label">Synced Devices</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Key Features Grid -->
+    <section id="features">
+        <div class="section-header">
+            <span class="section-tag">ARCHITECTURE</span>
+            <h2 class="section-title">Built for Performance, Privacy & Precision.</h2>
+            <p class="section-desc">Decentralized synchronization engineered in Go and Kotlin without third-party vendor lock-in.</p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon-wrap" style="color: var(--am-accent);">📱</div>
+                <h3>Android Client (klient)</h3>
+                <p>Native Jetpack Compose mobile client. Silently captures Apple Music notification telemetry, tracks local play counts, and offers 1-tap JSON backups.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon-wrap" style="color: var(--am-cyan);">⚡</div>
+                <h3>Go Daemon (synkerd)</h3>
+                <p>Lightweight Linux background service. Ingests high-frequency WebSocket ticks, maintains an embedded SQLite database, and auto-discovers peers via mDNS.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon-wrap" style="color: var(--am-indigo);">🖥️</div>
+                <h3>Desktop MPRIS Hook</h3>
+                <p>Full Linux D-Bus MPRIS player registration. Control playback and view current phone playback directly from Waybar, Polybar, GNOME, or KDE.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon-wrap" style="color: var(--am-purple);">🎨</div>
+                <h3>Lossless Artwork Pipeline</h3>
+                <p>Transmits and caches 100% original-quality album art tied deterministically to song IDs, eliminating stale covers and redundant uploads.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon-wrap" style="color: var(--am-green);">🌐</div>
+                <h3>P2P LAN + Cloud Fallback</h3>
+                <p>Zero-config local discovery on your home Wi-Fi with intelligent subnet proximity matching, plus automatic encrypted tunnel fallback when away.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon-wrap" style="color: #FF9F0A;">🔄</div>
+                <h3>Native Auto-Updates</h3>
+                <p>Built-in self-updaters for both the Android app (via FileProvider) and Linux daemon (atomic binary swap via <code>synkerd update</code>).</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section id="install" class="install-box">
+        <div class="install-header">
+            <div class="install-title">🚀 Fast Installation</div>
+            <div class="install-tabs">
+                <button class="install-tab-btn active" onclick="switchInstallTab('curl')">1-Line Script</button>
+                <button class="install-tab-btn" onclick="switchInstallTab('binary')">Binary & Systemd</button>
+                <button class="install-tab-btn" onclick="switchInstallTab('android')">Android APK</button>
+            </div>
+        </div>
+
+        <div id="tabContentCurl">
+            <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">
+                Download, compile, and configure the user-level systemd service in seconds:
+            </p>
+            <div class="terminal-block">
+                <div class="terminal-code">
+                    <span class="prompt-symbol">$</span>
+                    <span id="cmdCurl">curl -fsSL https://raw.githubusercontent.com/codershubinc/synker/main/install.sh | bash</span>
+                </div>
+                <button class="btn-copy" onclick="copyText('cmdCurl', this)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>Copy</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="tabContentBinary" style="display: none;">
+            <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">
+                Direct executable management and updates:
+            </p>
+            <div class="terminal-block">
+                <div class="terminal-code">
+                    <span class="prompt-symbol">$</span>
+                    <span id="cmdCli">synkerd status    # Check daemon health & mDNS<br>synkerd update    # Self-update binary from GitHub</span>
+                </div>
+                <button class="btn-copy" onclick="copyText('cmdCli', this)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>Copy</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="tabContentAndroid" style="display: none;">
+            <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">
+                Download and install the verified Android client APK:
+            </p>
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:14px;">
+                <a href="https://github.com/codershubinc/synker/releases/latest" class="btn-cta btn-primary" style="padding:10px 20px; font-size:14px;">
+                    ⬇️ Download synker-debug.apk
+                </a>
+                <span style="color:var(--text-muted); font-size:13px;">Supports Android 8.0+ (Oreo to Android 15)</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- GitHub Profile SVG Badge Section -->
+    <section id="badges" class="badge-showcase">
+        <div class="badge-info">
+            <span class="section-tag">PROFILE INTEGRATION</span>
+            <h3>Dynamic GitHub README Badges</h3>
+            <p>
+                Display your live listening status in real-time on your personal GitHub Profile README or website portfolio with clean, cache-busting SVG endpoints.
+            </p>
+
+            <div class="terminal-block" style="margin-bottom: 0;">
+                <div class="terminal-code" style="font-size: 12px;">
+                    <span id="badgeMdCode">![Now Playing](https://quazaar-sync.codershubinc.com/api/v1/current.svg)</span>
+                </div>
+                <button class="btn-copy" onclick="copyText('badgeMdCode', this)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>Copy</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="badge-preview-card">
+            <svg width="420" height="96" viewBox="0 0 420 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="420" height="96" rx="16" fill="#141418" stroke="rgba(255,255,255,0.1)"/>
+                <rect x="14" y="14" width="68" height="68" rx="12" fill="#24242C"/>
+                <circle cx="48" cy="48" r="22" fill="#FA243C"/>
+                <circle cx="48" cy="48" r="8" fill="#141418"/>
+                <text x="96" y="32" fill="#FA243C" font-family="-apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.8">NOW PLAYING • APPLE MUSIC</text>
+                <text x="96" y="52" fill="#FFFFFF" font-family="-apple-system, sans-serif" font-size="15" font-weight="700">Starboy (feat. Daft Punk)</text>
+                <text x="96" y="70" fill="#8E8E93" font-family="-apple-system, sans-serif" font-size="12">The Weeknd — Starboy</text>
+                <circle cx="396" cy="48" r="4" fill="#30D158"/>
+            </svg>
+        </div>
+    </section>
+
+</div>
+
+<!-- Footer -->
+<footer>
+    <div class="container">
+        <div class="footer-links">
+            <a href="https://github.com/codershubinc/synker" target="_blank">GitHub</a>
+            <a href="https://github.com/codershubinc/synker/releases" target="_blank">Releases</a>
+            <a href="https://github.com/codershubinc/synker/blob/main/README.md" target="_blank">Documentation</a>
+            <a href="https://quazaar-sync.codershubinc.com" target="_blank">Web Dashboard</a>
+        </div>
+        <p>&copy; 2026 Codershubinc. Open source under MIT License.</p>
+    </div>
+</footer>
+
+<script>
+    // Tab switching for installation box
+    function switchInstallTab(tab) {
+        document.querySelectorAll('.install-tab-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+
+        document.getElementById('tabContentCurl').style.display = tab === 'curl' ? 'block' : 'none';
+        document.getElementById('tabContentBinary').style.display = tab === 'binary' ? 'block' : 'none';
+        document.getElementById('tabContentAndroid').style.display = tab === 'android' ? 'block' : 'none';
+    }
+
+    // Demo Source Switcher
+    function switchDemoSource(src) {
+        document.getElementById('btnSourceMobile').classList.toggle('active', src === 'mobile');
+        document.getElementById('btnSourceDesktop').classList.toggle('active', src === 'desktop');
+
+        if (src === 'mobile') {
+            document.getElementById('demoStatus').innerText = 'PLAYING ON APPLE MUSIC (MOBILE)';
+            document.getElementById('demoTitle').innerText = 'Starboy (feat. Daft Punk)';
+            document.getElementById('demoArtist').innerText = 'The Weeknd • Starboy';
+            document.getElementById('demoCurTime').innerText = '01:42';
+            document.getElementById('demoTotalTime').innerText = '03:50';
+            document.getElementById('demoProgressFill').style.width = '44%';
+        } else {
+            document.getElementById('demoStatus').innerText = 'PLAYING ON SPOTIFY / MPRIS (LINUX)';
+            document.getElementById('demoTitle').innerText = 'Midnight City';
+            document.getElementById('demoArtist').innerText = 'M83 • Hurry Up, We\'re Dreaming';
+            document.getElementById('demoCurTime').innerText = '02:15';
+            document.getElementById('demoTotalTime').innerText = '04:03';
+            document.getElementById('demoProgressFill').style.width = '55%';
+        }
+    }
+
+    // Scrubber click interaction
+    function scrubDemo(event) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const percent = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        document.getElementById('demoProgressFill').style.width = (percent * 100) + '%';
+        const totalSec = 230;
+        const curSec = Math.floor(totalSec * percent);
+        const m = Math.floor(curSec / 60);
+        const s = curSec % 60;
+        document.getElementById('demoCurTime').innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    // Copy-to-clipboard helper
+    function copyText(elementId, btn) {
+        const text = document.getElementById(elementId).innerText.replace('<br>', '\n');
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span>✓ Copied!</span>';
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+            }, 2000);
+        });
+    }
+
+    // Dynamic GitHub Releases Auto-Fetcher
+    async function fetchLatestRelease() {
+        try {
+            const resp = await fetch('https://api.github.com/repos/codershubinc/synker/releases/latest');
+            if (!resp.ok) return;
+            const release = await resp.json();
+            const tag = release.tag_name || 'v0.0.2-beta';
+
+            document.getElementById('heroVersionTag').innerText = `Synker ${tag} • Now Live`;
+
+            // Find APK asset
+            const apkAsset = release.assets?.find(a => a.name.endsWith('.apk'));
+            if (apkAsset && apkAsset.browser_download_url) {
+                document.getElementById('btnDownloadApk').href = apkAsset.browser_download_url;
+            }
+        } catch (_) {}
+    }
+    fetchLatestRelease();
+</script>
 
 </body>
 </html>
